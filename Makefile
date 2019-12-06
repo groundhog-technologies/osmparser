@@ -3,6 +3,9 @@ ZONE=asia/taiwan
 
 ##@ Download
 
+get-osmconvert:
+	sudo apt install osmctools
+
 get-osm-pbf:  ## Download lasest version osm pbf file use ZONE variable. ex, make get-osm-pbf ZONE=asia/taiwan
 	wget http://download.geofabrik.de/${ZONE}-latest.osm.pbf -P ./src
 

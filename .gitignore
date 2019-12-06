@@ -127,3 +127,7 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.gitignore.io/api/go,git,vim,linux,macos,windows
+
+
+# Customize
+src/*.pbf

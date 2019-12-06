@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"os"
+	"osm-parser/cmd"
 	"strings"
 )
 
@@ -139,6 +140,9 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is config/%s.yaml)", "default"))
 	// Log level.
 	RootCmd.PersistentFlags().StringVar(&logLevel, "log_level", "debug", fmt.Sprintf("Log Level (default is %s)", "DEBUG"))
+
+	// Add cmd
+	RootCmd.AddCommand(cmd.OSMParserCmd)
 }
 
 func main() {

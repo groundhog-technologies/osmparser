@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	OSMParserCmd.Flags().String("pbf_file", "./src/taiwan-latest.osm.pbf", "pbf file path.")
+	addOSMFlag(OSMParserCmd)
 }
 
 // OSMParserCmd .

@@ -17,9 +17,8 @@ var OSMMapFeatureParserCmd = &cobra.Command{
 	Use:   "osm_map_feature_parser",
 	Short: "Parse osm map feature data.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		parser := mapfeature.Parser{
-			URL: viper.GetString("wiki_url"),
-		}
+		url := viper.GetString("wiki_url")
+		parser := mapfeature.GetPrimartFeaturesParser(url)
 		mapFeatures, err := parser.Run()
 		if err != nil {
 			return err

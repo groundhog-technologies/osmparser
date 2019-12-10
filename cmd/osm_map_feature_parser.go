@@ -25,8 +25,11 @@ var OSMMapFeatureParserCmd = &cobra.Command{
 		}
 
 		for k, v := range mapFeatures.Values {
+			logrus.Debug("----------")
 			for k2, v2 := range v.Values {
-				logrus.Debugf("key: %v subKey: %v %v", k, k2, v2)
+				for k3 := range v2.Values {
+					logrus.Debugf("key: %v subKey: %v value: %v", k, k2, k3)
+				}
 			}
 		}
 		return nil

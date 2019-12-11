@@ -39,6 +39,7 @@ func (p *PrimaryFeaturesParser) cleanKey(s string) string {
 	space := regexp.MustCompile(`\s+`)
 	newS = space.ReplaceAllString(newS, "_")
 	newS = strings.ToLower(newS)
+	newS = strings.ReplaceAll(newS, ",_", "_")
 	return newS
 }
 

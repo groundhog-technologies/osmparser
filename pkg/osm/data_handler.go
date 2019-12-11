@@ -27,6 +27,7 @@ type DataHandler struct {
 	NodeMapMutex sync.RWMutex
 	ElementMap   map[int64]Element
 	MapFeatures  mapfeature.MapFeatures
+	ElementChan  chan Element
 }
 
 // ReadNode .

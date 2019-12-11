@@ -1,10 +1,7 @@
 package osm
 
 import (
-	"encoding/hex"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"hash/fnv"
 	"osm-parser/pkg/mapfeature"
 	"strings"
 )
@@ -29,24 +26,25 @@ type Element struct {
 func (e *Element) GenFinalCode(mapFeatures mapfeature.MapFeatures) error {
 
 	for k, v := range e.Tags {
-		if subV, ok := mapFeatures.Values[strings.ToLower(k)]; ok {
-			var tagKey, tagValue string
-			tagKey = k
+		if l1Features, ok := mapFeatures.Values[strings.ToLower(k)]; ok {
+			var codeL1, codeL2, codeL3 string
+			codeL1 = k
 
-			for level2Tag, level2TagV := range subV.Values {
-				if _, ok := level2TagV.Values[v]; ok {
-					tagValue = level2Tag
+			for _, l2Features := range l1Features.Values {
+				if l3Features, ok := l2Features.Values[v]; ok {
+					codeL2 = l2Features.Key
+					codeL3 = l3Features.Key
 				}
 			}
-			if tagValue == "" {
-				tagValue = "other"
+			if codeL2 == "" {
+				codeL2 = "other"
 			}
-			hasher := fnv.New32a()
-			hasher.Write([]byte(fmt.Sprintf("%v:%v", tagKey, tagValue)))
-			finalCode := hex.EncodeToString(hasher.Sum(nil))
+			if codeL3 == "" {
+				codeL3 = "other"
+			}
+			finalCode := fmt.Sprintf("%v:%v:%v", codeL1, codeL2, codeL3)
 			e.FinalCodes = append(e.FinalCodes, finalCode)
 		}
 	}
-	logrus.Debugf("%+v %v", e.Tags, e.FinalCodes)
 	return nil
 }

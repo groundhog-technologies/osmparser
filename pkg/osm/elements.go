@@ -21,10 +21,8 @@ type Element struct {
 	FinalCodes []string
 }
 
-// GenFinalCode .
-// Turn tags to md5Hash.
-func (e *Element) GenFinalCode(mapFeatures mapfeature.MapFeatures) error {
-
+// GenInfo .
+func (e *Element) GenInfo(mapFeatures mapfeature.MapFeatures) error {
 	for k, v := range e.Tags {
 		if l1Features, ok := mapFeatures.Values[strings.ToLower(k)]; ok {
 			var codeL1, codeL2, codeL3 string

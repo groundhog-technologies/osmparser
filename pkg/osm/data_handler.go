@@ -4,16 +4,18 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/thomersch/gosmparse"
 	"os"
+	"osm-parser/pkg/mapfeature"
 	// "strings"
 	"sync"
 )
 
 // NewDataHandler return handler.
-func NewDataHandler() (Handler, error) {
+func NewDataHandler(mapFeatures mapfeature.MapFeatures) (Handler, error) {
 	return &DataHandler{
 		NodeMap:      make(map[int64]gosmparse.Node),
 		NodeMapMutex: sync.RWMutex{},
 		ElementMap:   make(map[int64]Element),
+		MapFeatures:  mapFeatures,
 	}, nil
 }
 
@@ -24,6 +26,7 @@ type DataHandler struct {
 	NodeMap      map[int64]gosmparse.Node
 	NodeMapMutex sync.RWMutex
 	ElementMap   map[int64]Element
+	MapFeatures  mapfeature.MapFeatures
 }
 
 // ReadNode .
@@ -94,20 +97,12 @@ func (d *DataHandler) Run(pbfFile string) error {
 	d.NodeMap = nil
 
 	logrus.Infof("%#v", dec)
-	finalCodeCountMap := make(map[string]int)
-	cellMap := make(map[string]Cell)
 	for _, v := range d.ElementMap {
-		if err := v.GenFinalCode(); err != nil {
+		if err := v.GenFinalCode(d.MapFeatures); err != nil {
 			logrus.Error(err)
 			continue
 		}
-		finalCodeCountMap[v.FinalCode]++
-		cellMap[v.FinalCode] = v.Cell
+		// logrus.Debugf("%v %v", v.Tags, v.FinalCodes)
 	}
-	for k, v := range finalCodeCountMap {
-		logrus.Debugf("%v: %v : %v", k, v, cellMap[k])
-	}
-	logrus.Infof("%#v", len(d.ElementMap))
-	logrus.Infof("%#v", len(finalCodeCountMap))
 	return nil
 }

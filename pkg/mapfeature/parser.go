@@ -3,7 +3,6 @@ package mapfeature
 import (
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
-	"github.com/sirupsen/logrus"
 	"net/http"
 	"regexp"
 	"strings"
@@ -26,11 +25,20 @@ type PrimaryFeaturesParser struct {
 	URL string
 }
 
-func (p *PrimaryFeaturesParser) cleanStr(s string) string {
+func (p *PrimaryFeaturesParser) cleanHTMLID(s string) string {
 	newS := strings.TrimSuffix(s, "\n")
 	newS = strings.TrimSpace(newS)
 	space := regexp.MustCompile(`\s+`)
 	newS = space.ReplaceAllString(newS, "_")
+	return newS
+}
+
+func (p *PrimaryFeaturesParser) cleanKey(s string) string {
+	newS := strings.TrimSuffix(s, "\n")
+	newS = strings.TrimSpace(newS)
+	space := regexp.MustCompile(`\s+`)
+	newS = space.ReplaceAllString(newS, "_")
+	newS = strings.ToLower(newS)
 	return newS
 }
 
@@ -57,14 +65,14 @@ func (p *PrimaryFeaturesParser) Run() (MapFeatures, error) {
 	doc.Find("ul .tocsection-1").Each(func(i int, s *goquery.Selection) {
 		s.Find("li.toclevel-2").Each(func(i int, s2 *goquery.Selection) {
 			// Key
-			key := p.cleanStr(s2.Find("a").First().Find("span.toctext").Text())
+			key := p.cleanHTMLID(s2.Find("a").First().Find("span.toctext").Text())
 			mapFeatures.Values[key] = MapFeatures{
 				Key:    key,
 				Values: make(map[string]MapFeatures),
 			}
 			s2.Find("ul").Find("li.toclevel-3").Each(func(i int, s3 *goquery.Selection) {
 				// subKey
-				subKey := p.cleanStr(s3.Find("a").First().Find("span.toctext").Text())
+				subKey := p.cleanHTMLID(s3.Find("a").First().Find("span.toctext").Text())
 				mapFeatures.Values[key].Values[subKey] = MapFeatures{
 					Key:    subKey,
 					Values: make(map[string]MapFeatures),
@@ -78,7 +86,6 @@ func (p *PrimaryFeaturesParser) Run() (MapFeatures, error) {
 	})
 
 	for k := range mapFeatures.Values {
-		logrus.Info(k)
 		docL1 := doc.Find(fmt.Sprintf("h3 span#%v", k))
 		if docL1.Length() > 0 {
 			if goquery.NodeName(docL1.Parent().Next().Next()) == "table" {
@@ -89,12 +96,12 @@ func (p *PrimaryFeaturesParser) Run() (MapFeatures, error) {
 						return
 					}
 					if s.Find("th").Length() == 1 {
-						subKey = p.cleanStr(s.Find("th").First().Text())
+						subKey = p.cleanHTMLID(s.Find("th").First().Text())
 						return
 					}
 					s.Find("td").Each(func(i int, s2 *goquery.Selection) {
 						if i == 1 {
-							value := p.cleanStr(s2.Text())
+							value := p.cleanHTMLID(s2.Text())
 							if _, ok := mapFeatures.Values[k].Values[subKey]; ok {
 								mapFeatures.Values[k].Values[subKey].Values[value] = MapFeatures{
 									Key: value,
@@ -116,8 +123,8 @@ func (p *PrimaryFeaturesParser) Run() (MapFeatures, error) {
 					if goquery.NodeName(s) == "h4" {
 						if tags, ok := s.Next().Attr("data-taginfo-taglist-tags"); ok {
 							for _, tag := range strings.Split(strings.Split(tags, "=")[1], ",") {
-								subKey := p.cleanStr(s.Text())
-								value := p.cleanStr(tag)
+								subKey := p.cleanHTMLID(s.Text())
+								value := p.cleanHTMLID(tag)
 								if _, ok := mapFeatures.Values[k].Values[subKey]; ok {
 									mapFeatures.Values[k].Values[subKey].Values[value] = MapFeatures{
 										Key: value,
@@ -137,7 +144,7 @@ func (p *PrimaryFeaturesParser) Run() (MapFeatures, error) {
 				newDoc := docL1.Parent().Next().Next()
 				if tags, ok := newDoc.Attr("data-taginfo-taglist-tags"); ok {
 					for _, tag := range strings.Split(strings.Split(tags, "=")[1], ",") {
-						value := p.cleanStr(tag)
+						value := p.cleanHTMLID(tag)
 						mapFeatures.Values[k].Values["other"].Values[value] = MapFeatures{
 							Key: value,
 						}
@@ -147,5 +154,19 @@ func (p *PrimaryFeaturesParser) Run() (MapFeatures, error) {
 		}
 	}
 
-	return mapFeatures, nil
+	newMapFeatures := MapFeatures{Key: "PrimaryFeatures", Values: make(map[string]MapFeatures)}
+	for k, v := range mapFeatures.Values {
+		cleanKey := p.cleanKey(k)
+		newMapFeatures.Values[cleanKey] = MapFeatures{Key: cleanKey, Values: make(map[string]MapFeatures)}
+		for k2, v2 := range v.Values {
+			cleanKey2 := p.cleanKey(k2)
+			newMapFeatures.Values[cleanKey].Values[cleanKey2] = MapFeatures{Key: cleanKey2, Values: make(map[string]MapFeatures)}
+			for k3 := range v2.Values {
+				cleanKey3 := p.cleanKey(k3)
+				newMapFeatures.Values[cleanKey].Values[cleanKey2].Values[cleanKey3] = MapFeatures{Key: cleanKey3}
+			}
+		}
+	}
+
+	return newMapFeatures, nil
 }

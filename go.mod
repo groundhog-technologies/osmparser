@@ -3,6 +3,7 @@ module osm-parser
 go 1.12
 
 require (
+	github.com/PuerkitoBio/goquery v1.5.0
 	github.com/benbjohnson/clock v1.0.0 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/onrik/logrus v0.4.1

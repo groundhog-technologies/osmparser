@@ -1,12 +1,14 @@
 package osm
 
 import (
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/thomersch/gosmparse"
 	"os"
+	"osm-parser/pkg/entity"
 	"osm-parser/pkg/mapfeature"
+	"strings"
 	"sync"
-	// "strings"
 )
 
 // NewDataHandler return handler.
@@ -14,9 +16,9 @@ func NewDataHandler(mapFeatures mapfeature.MapFeatures) (Handler, error) {
 	return &DataHandler{
 		NodeMap:      make(map[int64]gosmparse.Node),
 		NodeMapMutex: sync.RWMutex{},
-		ElementMap:   make(map[int64]Element),
+		ElementMap:   make(map[int64]entity.Element),
 		MapFeatures:  mapFeatures,
-		ElementChan:  make(chan Element),
+		ElementChan:  make(chan entity.Element),
 		NodeChan:     make(chan gosmparse.Node),
 		WayChan:      make(chan gosmparse.Way),
 	}, nil
@@ -28,9 +30,9 @@ func NewDataHandler(mapFeatures mapfeature.MapFeatures) (Handler, error) {
 type DataHandler struct {
 	NodeMap      map[int64]gosmparse.Node
 	NodeMapMutex sync.RWMutex
-	ElementMap   map[int64]Element
+	ElementMap   map[int64]entity.Element
 	MapFeatures  mapfeature.MapFeatures
-	ElementChan  chan Element
+	ElementChan  chan entity.Element
 	NodeChan     chan gosmparse.Node
 	WayChan      chan gosmparse.Way
 }
@@ -50,7 +52,7 @@ func (d *DataHandler) ReadRelation(r gosmparse.Relation) {
 }
 
 // Run .
-func (d *DataHandler) Run(dataChan chan Element, pbfFile string) error {
+func (d *DataHandler) Run(dataChan chan entity.Element, pbfFile string) error {
 	wg := sync.WaitGroup{}
 
 	doneChan := make(chan int)
@@ -61,7 +63,7 @@ func (d *DataHandler) Run(dataChan chan Element, pbfFile string) error {
 	go func() {
 		defer wg.Done()
 		for element := range d.ElementChan {
-			if err := element.GenInfo(d.MapFeatures); err != nil {
+			if err := d.GenInfo(&element, d.MapFeatures); err != nil {
 				logrus.Error(err)
 				continue
 			}
@@ -78,11 +80,11 @@ func (d *DataHandler) Run(dataChan chan Element, pbfFile string) error {
 		defer wg.Done()
 		for n := range d.NodeChan {
 			if len(n.Element.Tags) > 0 {
-				element := Element{
+				element := entity.Element{
 					ID:   n.Element.ID,
 					Type: "node",
-					Points: []LatLng{
-						LatLng{
+					Points: []entity.LatLng{
+						entity.LatLng{
 							Lat: n.Lat,
 							Lng: n.Lon,
 						},
@@ -103,10 +105,10 @@ func (d *DataHandler) Run(dataChan chan Element, pbfFile string) error {
 	go func() {
 		defer wg.Done()
 		for w := range d.WayChan {
-			element := Element{
+			element := entity.Element{
 				ID:     w.Element.ID,
 				Type:   "Way",
-				Points: []LatLng{},
+				Points: []entity.LatLng{},
 				Tags:   w.Element.Tags,
 			}
 			for _, nodeID := range w.NodeIDs {
@@ -114,7 +116,7 @@ func (d *DataHandler) Run(dataChan chan Element, pbfFile string) error {
 				if v, ok := d.NodeMap[nodeID]; ok {
 					element.Points = append(
 						element.Points,
-						LatLng{Lat: v.Lat, Lng: v.Lon},
+						entity.LatLng{Lat: v.Lat, Lng: v.Lon},
 					)
 					delete(d.NodeMap, nodeID)
 				}
@@ -162,6 +164,33 @@ func (d *DataHandler) Run(dataChan chan Element, pbfFile string) error {
 	wg.Wait()
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+// GenInfo .
+func (d *DataHandler) GenInfo(element *entity.Element, mapFeatures mapfeature.MapFeatures) error {
+	// FinalCodes.
+	for k, v := range element.Tags {
+		if l1Features, ok := mapFeatures.Values[strings.ToLower(k)]; ok {
+			var codeL1, codeL2, codeL3 string
+			codeL1 = k
+
+			for _, l2Features := range l1Features.Values {
+				if l3Features, ok := l2Features.Values[v]; ok {
+					codeL2 = l2Features.Key
+					codeL3 = l3Features.Key
+				}
+			}
+			if codeL2 == "" {
+				codeL2 = "other"
+			}
+			if codeL3 == "" {
+				codeL3 = "other"
+			}
+			finalCode := fmt.Sprintf("%v:%v:%v", codeL1, codeL2, codeL3)
+			element.FinalCodes = append(element.FinalCodes, finalCode)
+		}
 	}
 	return nil
 }

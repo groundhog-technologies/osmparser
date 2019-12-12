@@ -4,6 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"osm-parser/pkg/entity"
 	"osm-parser/pkg/mapfeature"
 	"osm-parser/pkg/osm"
 	"sync"
@@ -33,7 +34,7 @@ var OSMParserCmd = &cobra.Command{
 		}
 
 		wg := sync.WaitGroup{}
-		elementChan := make(chan osm.Element)
+		elementChan := make(chan entity.Element)
 
 		wg.Add(1)
 		go func() {

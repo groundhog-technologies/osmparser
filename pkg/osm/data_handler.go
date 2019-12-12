@@ -50,29 +50,26 @@ func (d *DataHandler) ReadRelation(r gosmparse.Relation) {
 }
 
 // Run .
-func (d *DataHandler) Run(pbfFile string) error {
+func (d *DataHandler) Run(dataChan chan Element, pbfFile string) error {
 	wg := sync.WaitGroup{}
+
+	doneChan := make(chan int)
+	defer close(doneChan)
 
 	// Element worker.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		eMap := make(map[string]int)
 		for element := range d.ElementChan {
 			if err := element.GenInfo(d.MapFeatures); err != nil {
 				logrus.Error(err)
 				continue
 			}
-			logrus.Debug(element.Tags, "  ", element.Points)
-			logrus.Info(element.FinalCodes)
-			for _, code := range element.FinalCodes {
-				eMap[code]++
-			}
+			dataChan <- element
 		}
-		for k, v := range eMap {
-			logrus.Debugf("%v: %v", k, v)
-		}
-		logrus.Info(len(eMap))
+		close(dataChan)
+		logrus.Info("Close dataChan")
+		doneChan <- 1
 	}()
 
 	// Node worker.
@@ -98,6 +95,7 @@ func (d *DataHandler) Run(pbfFile string) error {
 			d.NodeMap[n.Element.ID] = n
 			d.NodeMapMutex.Unlock()
 		}
+		doneChan <- 1
 	}()
 
 	// Way worker.
@@ -124,6 +122,7 @@ func (d *DataHandler) Run(pbfFile string) error {
 			}
 			d.ElementChan <- element
 		}
+		doneChan <- 1
 	}()
 
 	r, err := os.Open(pbfFile)
@@ -133,14 +132,36 @@ func (d *DataHandler) Run(pbfFile string) error {
 	dec := gosmparse.NewDecoder(r)
 	// Parse will block until it is done or an error occurs.
 	err = dec.Parse(d)
-
 	close(d.NodeChan)
-	close(d.WayChan)
-	close(d.ElementChan)
+	logrus.Info("Close NodeChan")
+
+	finishWorker := 0
+	finish := false
+	for {
+		select {
+		case <-doneChan:
+			finishWorker++
+			switch finishWorker {
+			case 1:
+				close(d.WayChan)
+				// Release.
+				d.NodeMap = nil
+				logrus.Info("Close WayChan")
+			case 2:
+				close(d.ElementChan)
+				logrus.Info("Close ElementChan")
+			case 3:
+				finish = true
+			}
+		}
+		if finish {
+			break
+		}
+	}
+
 	wg.Wait()
 	if err != nil {
 		return err
 	}
-
 	return nil
 }

@@ -7,5 +7,5 @@ import (
 // Handler is interface for handler osm data.
 type Handler interface {
 	gosmparse.OSMReader
-	Run(pbfFile string) error
+	Run(dataChan chan Element, pbfFile string) error
 }

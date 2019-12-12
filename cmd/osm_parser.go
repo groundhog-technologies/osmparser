@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"osm-parser/pkg/mapfeature"
 	"osm-parser/pkg/osm"
+	"sync"
 )
 
 func init() {
@@ -29,9 +31,25 @@ var OSMParserCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := handler.Run(viper.GetString("pbf_file")); err != nil {
+
+		wg := sync.WaitGroup{}
+		elementChan := make(chan osm.Element)
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			idx := 0
+			for element := range elementChan {
+				idx++
+				logrus.Debug(idx, " ", element.Tags, "  ", element.FinalCodes)
+			}
+		}()
+
+		if err := handler.Run(elementChan, viper.GetString("pbf_file")); err != nil {
 			return err
 		}
+
+		wg.Wait()
 		return nil
 	},
 }

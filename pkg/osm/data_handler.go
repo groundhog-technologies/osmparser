@@ -188,7 +188,8 @@ func (d *DataHandler) GenInfo(element *entity.Element, mapFeatures mapfeature.Ma
 			if codeL3 == "" {
 				codeL3 = "other"
 			}
-			finalCode := fmt.Sprintf("%v:%v:%v", codeL1, codeL2, codeL3)
+			// finalCode := fmt.Sprintf("%v:%v:%v", codeL1, codeL2, codeL3)
+			finalCode := fmt.Sprintf("%v:%v", codeL1, codeL2)
 			element.FinalCodes = append(element.FinalCodes, finalCode)
 		}
 	}

@@ -1,14 +1,19 @@
 package classifier
 
 import (
+	"encoding/csv"
+	"fmt"
 	"github.com/muesli/clusters"
 	"github.com/muesli/kmeans"
 	"github.com/sirupsen/logrus"
 	"github.com/uber/h3-go"
+	"os"
 	"osm-parser/pkg/entity"
 	"osm-parser/pkg/mapfeature"
 	"reflect"
 	"sort"
+	"strconv"
+	"strings"
 )
 
 // AreaClassifier .
@@ -17,6 +22,7 @@ type AreaClassifier struct {
 	Resolution  int
 	MapFeatures mapfeature.MapFeatures
 	GeoPolygon  h3.GeoPolygon
+	OutputCSV   string
 }
 
 // H3Cell .
@@ -31,6 +37,7 @@ func (c *H3Cell) CellToClustersCoordinates(finalCodes []string) clusters.Coordin
 	for _, code := range finalCodes {
 		coordinates = append(coordinates, float64(c.POIs[code]))
 	}
+	// logrus.Debugf("%#v: %v", c.H3Index, coordinates)
 	return coordinates
 }
 
@@ -39,6 +46,7 @@ func (c *AreaClassifier) Run() error {
 	h3Idxs := h3.Polyfill(c.GeoPolygon, c.Resolution)
 
 	// Filter element not in polygon.
+	logrus.Info("Start poi filter.")
 	newElements := []entity.Element{}
 	h3IdxsMap := make(map[h3.H3Index]int)
 	for _, idx := range h3Idxs {
@@ -78,7 +86,6 @@ func (c *AreaClassifier) Run() error {
 		}
 		if isInPolygon {
 			newElements = append(newElements, element)
-			logrus.Debugf("%#v in polygon", element)
 		}
 	}
 	c.Elements = newElements
@@ -112,8 +119,7 @@ func (c *AreaClassifier) Run() error {
 	logrus.Info("Finish gen cellStatistics")
 
 	for _, element := range c.Elements {
-		logrus.Debug(element)
-		geoFence := []h3.GeoCoord{}
+		elementGeoFence := []h3.GeoCoord{}
 		elementH3Idxs := []h3.H3Index{}
 		for _, latLng := range element.Points {
 			h3Idx := h3.FromGeo(
@@ -123,16 +129,19 @@ func (c *AreaClassifier) Run() error {
 				},
 				c.Resolution,
 			)
-			elementH3Idxs = append(h3Idxs, h3Idx)
-			geoFence = append(
-				geoFence,
+			elementH3Idxs = append(elementH3Idxs, h3Idx)
+			elementGeoFence = append(
+				elementGeoFence,
 				h3.GeoCoord{
 					Latitude:  latLng.Lat,
 					Longitude: latLng.Lng,
 				},
 			)
 		}
-		inElementH3Idxs := h3.Polyfill(h3.GeoPolygon{Geofence: geoFence}, c.Resolution)
+		inElementH3Idxs := h3.Polyfill(
+			h3.GeoPolygon{Geofence: elementGeoFence},
+			c.Resolution,
+		)
 		for _, h3Idx := range inElementH3Idxs {
 			elementH3Idxs = append(elementH3Idxs, h3Idx)
 		}
@@ -153,32 +162,50 @@ func (c *AreaClassifier) Run() error {
 	}
 
 	km := kmeans.New()
-	clusters, err := km.Partition(d, 12)
+	clusters, err := km.Partition(d, 9)
 	if err != nil {
 		return err
 	}
-	for idx, c := range clusters {
-		for k, v := range c.Center {
-			finalCode := poiFinalCodes[k]
-			logrus.Infof("%v:%v: %v\n", idx, finalCode, v)
-		}
 
-		num := 0
+	// CSV Writer.
+	file, err := os.Create(c.OutputCSV)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+	header := []string{"class"}
+	for _, v := range poiFinalCodes {
+		header = append(header, v)
+	}
+	header = append(header, "H3Indexs")
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	for idx, c := range clusters {
+		values := []string{strconv.Itoa(idx)}
+		for _, v := range c.Center {
+			// finalCode := poiFinalCodes[k]
+			values = append(values, strconv.FormatFloat(v, 'f', -1, 64))
+		}
+		idxs := []string{}
 		for _, observation := range c.Observations {
-			if num > 10 {
-				break
-			}
 			for _, cell := range cellStatistics {
 				if reflect.DeepEqual(cell.CellToClustersCoordinates(poiFinalCodes), observation) {
-					num++
-					logrus.Debug(h3.ToGeo(cell.H3Index))
-					if num > 10 {
-						break
-					}
+					idxs = append(
+						idxs,
+						fmt.Sprintf("(%v,%v)", h3.ToGeo(cell.H3Index).Latitude, h3.ToGeo(cell.H3Index).Longitude),
+					)
 				}
 			}
 		}
-
+		values = append(values, strings.Join(idxs, ","))
+		if err := writer.Write(values); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }

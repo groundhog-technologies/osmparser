@@ -15,6 +15,8 @@ import (
 
 func init() {
 	addOSMFlag(AreaClassifierCmd)
+	AreaClassifierCmd.Flags().Int("h3_resolution", 9, "H3 resolution. See https://uber.github.io/h3/#/documentation/core-library/resolution-table .")
+	AreaClassifierCmd.Flags().String("output_csv", "./classifier_output.csv", "output csv path.")
 }
 
 var taipeiGeoPolygon = h3.GeoPolygon{
@@ -61,7 +63,6 @@ var AreaClassifierCmd = &cobra.Command{
 	Short: "Classifier area in earth.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		st := time.Now()
-		defer logrus.Infof("Timeit: %.2f", time.Since(st).Seconds())
 
 		// MapFeatures parser.
 		url := viper.GetString("wiki_url")
@@ -99,14 +100,16 @@ var AreaClassifierCmd = &cobra.Command{
 		// Classifier .
 		c := classifier.AreaClassifier{
 			Elements:    elements,
-			Resolution:  10,
+			Resolution:  viper.GetInt("h3_resolution"),
 			MapFeatures: mapFeatures,
 			GeoPolygon:  taipeiGeoPolygon,
+			OutputCSV:   viper.GetString("output_csv"),
 		}
 
 		if err := c.Run(); err != nil {
 			return err
 		}
+		logrus.Infof("Timeit: %.2f", time.Since(st).Seconds())
 		return nil
 	},
 }

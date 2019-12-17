@@ -13,6 +13,7 @@ require (
 	github.com/muesli/clusters v0.0.0-20190807044042-ba9c57dd9228
 	github.com/muesli/kmeans v0.0.0-20190917235210-80dfc71e6c5a
 	github.com/onrik/logrus v0.4.1
+	github.com/paulmach/go.geojson v1.4.0
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.5.0

@@ -2,9 +2,9 @@ package classifier
 
 import (
 	"encoding/csv"
-	"fmt"
 	"github.com/muesli/clusters"
 	"github.com/muesli/kmeans"
+	geojson "github.com/paulmach/go.geojson"
 	"github.com/sirupsen/logrus"
 	"github.com/uber/h3-go"
 	"os"
@@ -191,17 +191,29 @@ func (c *AreaClassifier) Run() error {
 			values = append(values, strconv.FormatFloat(v, 'f', -1, 64))
 		}
 		idxs := []string{}
+		fc := geojson.NewFeatureCollection()
 		for _, observation := range c.Observations {
 			for _, cell := range cellStatistics {
 				if reflect.DeepEqual(cell.CellToClustersCoordinates(poiFinalCodes), observation) {
+					fc.AddFeature(
+						geojson.NewPointFeature(
+							[]float64{h3.ToGeo(cell.H3Index).Latitude, h3.ToGeo(cell.H3Index).Longitude},
+						),
+					)
 					idxs = append(
 						idxs,
-						fmt.Sprintf("(%v,%v)", h3.ToGeo(cell.H3Index).Latitude, h3.ToGeo(cell.H3Index).Longitude),
+						h3.ToString(cell.H3Index),
 					)
 				}
 			}
 		}
+		rawJSON, err := fc.MarshalJSON()
+		if err != nil {
+			logrus.Error(err)
+			continue
+		}
 		values = append(values, strings.Join(idxs, ","))
+		values = append(values, string(rawJSON))
 		if err := writer.Write(values); err != nil {
 			return err
 		}

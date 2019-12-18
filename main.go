@@ -144,6 +144,7 @@ func init() {
 	// Add cmd
 	RootCmd.AddCommand(cmd.OSMParserCmd)
 	RootCmd.AddCommand(cmd.OSMMapFeatureParserCmd)
+	RootCmd.AddCommand(cmd.AreaClassifierCmd)
 }
 
 func main() {

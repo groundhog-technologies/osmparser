@@ -175,11 +175,12 @@ func (c *AreaClassifier) Run() error {
 	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
-	header := []string{"class"}
+	header := []string{"group"}
 	for _, v := range poiFinalCodes {
 		header = append(header, v)
 	}
 	header = append(header, "H3Indexs")
+	header = append(header, "geoJSON")
 	if err := writer.Write(header); err != nil {
 		return err
 	}

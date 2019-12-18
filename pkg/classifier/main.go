@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // AreaClassifier .
@@ -52,42 +53,56 @@ func (c *AreaClassifier) Run() error {
 	for _, idx := range h3Idxs {
 		h3IdxsMap[idx] = 1
 	}
+	workerChan := make(chan int, 10)
+	wg := sync.WaitGroup{}
+	mapMutex := sync.RWMutex{}
 	for _, element := range c.Elements {
-		geoFence := []h3.GeoCoord{}
-		elementH3Idxs := []h3.H3Index{}
-		for _, latLng := range element.Points {
-			h3Idx := h3.FromGeo(
-				h3.GeoCoord{
-					Latitude:  latLng.Lat,
-					Longitude: latLng.Lng,
-				},
-				c.Resolution,
-			)
-			elementH3Idxs = append(h3Idxs, h3Idx)
-			geoFence = append(
-				geoFence,
-				h3.GeoCoord{
-					Latitude:  latLng.Lat,
-					Longitude: latLng.Lng,
-				},
-			)
-		}
-		inElementH3Idxs := h3.Polyfill(h3.GeoPolygon{Geofence: geoFence}, c.Resolution)
-		for _, h3Idx := range inElementH3Idxs {
-			elementH3Idxs = append(elementH3Idxs, h3Idx)
-		}
-
-		isInPolygon := true
-		for _, idx := range elementH3Idxs {
-			if _, ok := h3IdxsMap[idx]; !ok {
-				isInPolygon = false
-				break
+		wg.Add(1)
+		workerChan <- 1
+		go func(element entity.Element) {
+			defer func() {
+				<-workerChan
+			}()
+			defer wg.Done()
+			geoFence := []h3.GeoCoord{}
+			elementH3Idxs := []h3.H3Index{}
+			for _, latLng := range element.Points {
+				h3Idx := h3.FromGeo(
+					h3.GeoCoord{
+						Latitude:  latLng.Lat,
+						Longitude: latLng.Lng,
+					},
+					c.Resolution,
+				)
+				elementH3Idxs = append(h3Idxs, h3Idx)
+				geoFence = append(
+					geoFence,
+					h3.GeoCoord{
+						Latitude:  latLng.Lat,
+						Longitude: latLng.Lng,
+					},
+				)
 			}
-		}
-		if isInPolygon {
-			newElements = append(newElements, element)
-		}
+			inElementH3Idxs := h3.Polyfill(h3.GeoPolygon{Geofence: geoFence}, c.Resolution)
+			for _, h3Idx := range inElementH3Idxs {
+				elementH3Idxs = append(elementH3Idxs, h3Idx)
+			}
+
+			isInPolygon := true
+			for _, idx := range elementH3Idxs {
+				if _, ok := h3IdxsMap[idx]; !ok {
+					isInPolygon = false
+					break
+				}
+			}
+			if isInPolygon {
+				mapMutex.Lock()
+				newElements = append(newElements, element)
+				mapMutex.Unlock()
+			}
+		}(element)
 	}
+	wg.Wait()
 	c.Elements = newElements
 	h3IdxsMap = nil
 
@@ -162,7 +177,7 @@ func (c *AreaClassifier) Run() error {
 	}
 
 	km := kmeans.New()
-	clusters, err := km.Partition(d, 9)
+	clusters, err := km.Partition(d, 7)
 	if err != nil {
 		return err
 	}

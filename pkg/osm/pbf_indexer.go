@@ -1,6 +1,7 @@
 package osm
 
 import (
+	"github.com/sirupsen/logrus"
 	"github.com/thomersch/gosmparse"
 	"os"
 	"osmparser/pkg/bitmask"
@@ -39,6 +40,7 @@ func (p *PBFIndexer) Run() error {
 	if err := decoder.Parse(p); err != nil {
 		return err
 	}
+	logrus.Info("456")
 	return nil
 }
 

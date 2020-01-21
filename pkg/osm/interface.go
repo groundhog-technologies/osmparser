@@ -16,3 +16,9 @@ type PBFIndexParser interface {
 	PBFDataParser
 	GetMap() *bitmask.PBFMasks
 }
+
+// PBFRelationMemberIndexParser .
+type PBFRelationMemberIndexParser interface {
+	PBFDataParser
+	GetMap() *bitmask.PBFMasks
+}

@@ -1,11 +1,27 @@
 package osm
 
 import (
+	"github.com/sirupsen/logrus"
 	"github.com/thomersch/gosmparse"
 	"os"
 	"osmparser/pkg/bitmask"
 	"sync"
 )
+
+// NewPBFRelationMemberIndexer .
+func NewPBFRelationMemberIndexer(pbfFile string, pbfMasks *bitmask.PBFMasks) PBFRelationMemberIndexParser {
+	return &PBFRelationMemberIndexer{
+		PBFFile:  pbfFile,
+		PBFMasks: pbfMasks,
+	}
+}
+
+// PBFRelationMemberIndexer .
+type PBFRelationMemberIndexer struct {
+	PBFFile  string
+	PBFMasks *bitmask.PBFMasks
+	MapLock  sync.RWMutex
+}
 
 // GetMap .
 func (p *PBFRelationMemberIndexer) GetMap() *bitmask.PBFMasks {
@@ -24,22 +40,8 @@ func (p *PBFRelationMemberIndexer) Run() error {
 	if err := decoder.Parse(p); err != nil {
 		return err
 	}
+	logrus.Info("123")
 	return nil
-}
-
-// PBFRelationMemberIndexer .
-type PBFRelationMemberIndexer struct {
-	PBFFile  string
-	PBFMasks *bitmask.PBFMasks
-	MapLock  sync.RWMutex
-}
-
-// NewPBFRelationMemberIndexer .
-func NewPBFRelationMemberIndexer(pbfFile string, pbfMasks *bitmask.PBFMasks) PBFIndexParser {
-	return &PBFRelationMemberIndexer{
-		PBFFile:  pbfFile,
-		PBFMasks: pbfMasks,
-	}
 }
 
 // ReadNode .

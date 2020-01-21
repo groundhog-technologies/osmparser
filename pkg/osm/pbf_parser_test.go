@@ -6,24 +6,27 @@ import (
 	"testing"
 )
 
-func TestPBFRelationMemberIndexer(t *testing.T) {
+func TestPBFParser(t *testing.T) {
+
 	c := dig.New()
+	c.Provide(NewPBFIndexer)
 	c.Provide(NewPBFRelationMemberIndexer)
+	c.Provide(NewPBFParser)
 	c.Provide(func() string {
 		return "../../src/taiwan-latest.osm.pbf"
 	})
-	c.Provide(bitmask.NewPBFMasks)
+	masks := bitmask.NewPBFMasks()
+	c.Provide(func() *bitmask.PBFMasks {
+		return masks
+	})
 
-	var m *bitmask.PBFMasks
-	err := c.Invoke(func(parser PBFRelationMemberIndexParser) {
+	err := c.Invoke(func(parser PBFDataParser) {
 		if err := parser.Run(); err != nil {
 			t.Error(err)
 		}
-		m = parser.GetMap()
 	})
 
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(m)
 }

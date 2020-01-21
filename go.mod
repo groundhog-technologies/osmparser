@@ -20,6 +20,7 @@ require (
 	github.com/thomersch/gosmparse v0.0.0-20190428115224-6be706b995b9
 	github.com/uber/h3-go v3.0.1+incompatible
 	github.com/ziutek/mymysql v1.5.4 // indirect
+	go.uber.org/dig v1.8.0
 	golang.org/x/crypto v0.0.0-20191205180655-e7c4368fe9dd // indirect
 	golang.org/x/net v0.0.0-20191204025024-5ee1b9f4859a // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e

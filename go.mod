@@ -18,6 +18,7 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.5.0
 	github.com/thomersch/gosmparse v0.0.0-20190428115224-6be706b995b9
+	github.com/tmthrgd/go-popcount v0.0.0-20190904054823-afb1ace8b04f
 	github.com/uber/h3-go v3.0.1+incompatible
 	github.com/ziutek/mymysql v1.5.4 // indirect
 	go.uber.org/dig v1.8.0

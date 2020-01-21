@@ -7,12 +7,6 @@ import (
 	"sync"
 )
 
-// PBFIndexParser .
-type PBFIndexParser interface {
-	PBFDataParser
-	GetMap() *bitmask.PBFMasks
-}
-
 // NewPBFIndexer .
 func NewPBFIndexer(pbfFile string, pbfMasks *bitmask.PBFMasks) PBFIndexParser {
 	return &PBFIndexer{
@@ -26,6 +20,26 @@ type PBFIndexer struct {
 	PBFFile  string
 	PBFMasks *bitmask.PBFMasks
 	MapLock  sync.RWMutex
+}
+
+// GetMap .
+func (p *PBFIndexer) GetMap() *bitmask.PBFMasks {
+	return p.PBFMasks
+}
+
+// Run .
+func (p *PBFIndexer) Run() error {
+	reader, err := os.Open(p.PBFFile)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	decoder := gosmparse.NewDecoder(reader)
+	if err := decoder.Parse(p); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ReadNode .
@@ -69,24 +83,4 @@ func (p *PBFIndexer) ReadRelation(r gosmparse.Relation) {
 			}
 		}
 	}
-}
-
-// GetMap .
-func (p *PBFIndexer) GetMap() *bitmask.PBFMasks {
-	return p.PBFMasks
-}
-
-// Run .
-func (p *PBFIndexer) Run() error {
-	reader, err := os.Open(p.PBFFile)
-	if err != nil {
-		return err
-	}
-	defer reader.Close()
-
-	decoder := gosmparse.NewDecoder(reader)
-	if err := decoder.Parse(p); err != nil {
-		return err
-	}
-	return nil
 }

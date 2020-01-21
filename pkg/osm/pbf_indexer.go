@@ -10,37 +10,37 @@ import (
 // PBFIndexParser .
 type PBFIndexParser interface {
 	PBFDataParser
-	GetMap() *bitmask.PBFIndexMap
+	GetMap() *bitmask.PBFMasks
 }
 
 // NewPBFIndexer .
-func NewPBFIndexer(pbfFile string, pbfIdxMap *bitmask.PBFIndexMap) PBFIndexParser {
+func NewPBFIndexer(pbfFile string, pbfMasks *bitmask.PBFMasks) PBFIndexParser {
 	return &PBFIndexer{
-		PBFFile:   pbfFile,
-		PBFIdxMap: pbfIdxMap,
+		PBFFile:  pbfFile,
+		PBFMasks: pbfMasks,
 	}
 }
 
 // PBFIndexer .
 type PBFIndexer struct {
-	PBFFile   string
-	PBFIdxMap *bitmask.PBFIndexMap
-	MapLock   sync.RWMutex
+	PBFFile  string
+	PBFMasks *bitmask.PBFMasks
+	MapLock  sync.RWMutex
 }
 
 // ReadNode .
 func (p *PBFIndexer) ReadNode(n gosmparse.Node) {
 	if len(n.Tags) > 0 {
-		p.PBFIdxMap.Nodes.Insert(n.ID)
+		p.PBFMasks.Nodes.Insert(n.ID)
 	}
 }
 
 // ReadWay .
 func (p *PBFIndexer) ReadWay(w gosmparse.Way) {
 	if len(w.Tags) > 0 {
-		p.PBFIdxMap.Ways.Insert(w.ID)
+		p.PBFMasks.Ways.Insert(w.ID)
 		for _, nodeID := range w.NodeIDs {
-			p.PBFIdxMap.WayRefs.Insert(nodeID)
+			p.PBFMasks.WayRefs.Insert(nodeID)
 		}
 	}
 }
@@ -57,23 +57,23 @@ func (p *PBFIndexer) ReadRelation(r gosmparse.Relation) {
 		if count[1] == 0 {
 			return
 		}
-		p.PBFIdxMap.Relations.Insert(r.ID)
+		p.PBFMasks.Relations.Insert(r.ID)
 		for _, member := range r.Members {
 			switch member.Type {
 			case 0:
-				p.PBFIdxMap.RelNodes.Insert(member.ID)
+				p.PBFMasks.RelNodes.Insert(member.ID)
 			case 1:
-				p.PBFIdxMap.RelWays.Insert(member.ID)
+				p.PBFMasks.RelWays.Insert(member.ID)
 			case 2:
-				p.PBFIdxMap.RelRelation.Insert(member.ID)
+				p.PBFMasks.RelRelation.Insert(member.ID)
 			}
 		}
 	}
 }
 
 // GetMap .
-func (p *PBFIndexer) GetMap() *bitmask.PBFIndexMap {
-	return p.PBFIdxMap
+func (p *PBFIndexer) GetMap() *bitmask.PBFMasks {
+	return p.PBFMasks
 }
 
 // Run .

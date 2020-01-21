@@ -9,8 +9,8 @@ import (
 	"reflect"
 )
 
-// PBFIndexMap - struct to hold common masks .
-type PBFIndexMap struct {
+// PBFMasks - struct to hold common masks .
+type PBFMasks struct {
 	Nodes       *Bitmask
 	Ways        *Bitmask
 	Relations   *Bitmask
@@ -20,9 +20,9 @@ type PBFIndexMap struct {
 	RelRelation *Bitmask
 }
 
-// NewPBFIndexMap - constructor
-func NewPBFIndexMap() *PBFIndexMap {
-	return &PBFIndexMap{
+// NewPBFMasks - constructor
+func NewPBFMasks() *PBFMasks {
+	return &PBFMasks{
 		Nodes:       NewBitMask(),
 		Ways:        NewBitMask(),
 		Relations:   NewBitMask(),
@@ -34,21 +34,21 @@ func NewPBFIndexMap() *PBFIndexMap {
 }
 
 // WriteTo - write to destination
-func (m *PBFIndexMap) WriteTo(sink io.Writer) (int64, error) {
+func (m *PBFMasks) WriteTo(sink io.Writer) (int64, error) {
 	encoder := gob.NewEncoder(sink)
 	err := encoder.Encode(m)
 	return 0, err
 }
 
 // ReadFrom - read from destination
-func (m *PBFIndexMap) ReadFrom(tap io.Reader) (int64, error) {
+func (m *PBFMasks) ReadFrom(tap io.Reader) (int64, error) {
 	decoder := gob.NewDecoder(tap)
 	err := decoder.Decode(m)
 	return 0, err
 }
 
 // WriteToFile - write to disk
-func (m *PBFIndexMap) WriteToFile(path string) {
+func (m *PBFMasks) WriteToFile(path string) {
 	file, err := os.Create(path)
 	if err != nil {
 		panic(err)
@@ -58,7 +58,7 @@ func (m *PBFIndexMap) WriteToFile(path string) {
 }
 
 // ReadFromFile - read from disk
-func (m *PBFIndexMap) ReadFromFile(path string) {
+func (m *PBFMasks) ReadFromFile(path string) {
 
 	// bitmask file doesn't exist
 	if _, err := os.Stat(path); err != nil {
@@ -75,7 +75,7 @@ func (m *PBFIndexMap) ReadFromFile(path string) {
 }
 
 // Print -- print debug stats
-func (m PBFIndexMap) Print() {
+func (m PBFMasks) Print() {
 	k := reflect.TypeOf(m)
 	v := reflect.ValueOf(m)
 	for i := 0; i < k.NumField(); i++ {

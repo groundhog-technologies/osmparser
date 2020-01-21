@@ -1,7 +1,6 @@
 package osm
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/thomersch/gosmparse"
 	"os"
 	"osmparser/pkg/bitmask"

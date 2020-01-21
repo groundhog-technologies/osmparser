@@ -14,12 +14,10 @@ func TestPBFIndexer(t *testing.T) {
 	})
 	c.Provide(bitmask.NewPBFIndexMap)
 
-	var m *bitmask.PBFIndexMap
 	err := c.Invoke(func(parser PBFIndexParser) {
 		if err := parser.Run(); err != nil {
 			t.Error(err)
 		}
-		m = parser.GetMap()
 	})
 
 	if err != nil {

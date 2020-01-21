@@ -4,63 +4,81 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/thomersch/gosmparse"
 	"os"
-	"osm-parser/pkg/bitmask"
+	"osmparser/pkg/bitmask"
 	"sync"
 )
 
 // PBFIndexParser .
 type PBFIndexParser interface {
 	PBFDataParser
-	GetMap() bitmask.PBFIndexParser
+	GetMap() *bitmask.PBFIndexMap
 }
 
 // NewPBFIndexer .
-func NewPBFIndexer(pbfFile string) PBFIndexParser {
+func NewPBFIndexer(pbfFile string, pbfIdxMap *bitmask.PBFIndexMap) PBFIndexParser {
 	return &PBFIndexer{
-		PBFFile: pbfFile,
-		Map:     make(map[int64]int),
-		MapLock: sync.RWMutex{},
+		PBFFile:   pbfFile,
+		PBFIdxMap: pbfIdxMap,
 	}
 }
 
 // PBFIndexer .
 type PBFIndexer struct {
-	PBFFile string
-	Map     map[int64]int
-	MapLock sync.RWMutex
-}
-
-// Insert .
-func (p *PBFIndexer) Insert(index int64) {
-	p.MapLock.Lock()
-	defer p.MapLock.Unlock()
-	p.Map[index] = 1
+	PBFFile   string
+	PBFIdxMap *bitmask.PBFIndexMap
+	MapLock   sync.RWMutex
 }
 
 // ReadNode .
 func (p *PBFIndexer) ReadNode(n gosmparse.Node) {
-	p.Insert(n.ID)
+	if len(n.Tags) > 0 {
+		p.PBFIdxMap.Nodes.Insert(n.ID)
+	}
 }
 
 // ReadWay .
 func (p *PBFIndexer) ReadWay(w gosmparse.Way) {
-	// logrus.Info(w)
-	p.Insert(w.ID)
+	if len(w.Tags) > 0 {
+		p.PBFIdxMap.Ways.Insert(w.ID)
+		for _, nodeID := range w.NodeIDs {
+			p.PBFIdxMap.WayRefs.Insert(nodeID)
+		}
+	}
 }
 
 // ReadRelation .
 func (p *PBFIndexer) ReadRelation(r gosmparse.Relation) {
-	// logrus.Info(r)
+	if len(r.Tags) > 0 {
+		var count = make(map[int]int64)
+		for _, member := range r.Members {
+			count[int(member.Type)]++
+		}
+
+		// Skip if relations contain 0 way.
+		if count[1] == 0 {
+			return
+		}
+		p.PBFIdxMap.Relations.Insert(r.ID)
+		for _, member := range r.Members {
+			switch member.Type {
+			case 0:
+				p.PBFIdxMap.RelNodes.Insert(member.ID)
+			case 1:
+				p.PBFIdxMap.RelWays.Insert(member.ID)
+			case 2:
+				p.PBFIdxMap.RelRelation.Insert(member.ID)
+			}
+		}
+	}
 }
 
 // GetMap .
-func (p *PBFIndexer) GetMap() map[int64]int {
-	return p.Map
+func (p *PBFIndexer) GetMap() *bitmask.PBFIndexMap {
+	return p.PBFIdxMap
 }
 
 // Run .
 func (p *PBFIndexer) Run() error {
-	logrus.Info(p.PBFFile)
 	reader, err := os.Open(p.PBFFile)
 	if err != nil {
 		return err

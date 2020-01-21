@@ -2,6 +2,7 @@ package osm
 
 import (
 	"go.uber.org/dig"
+	"osmparser/pkg/bitmask"
 	"testing"
 )
 
@@ -11,21 +12,17 @@ func TestPBFIndexer(t *testing.T) {
 	c.Provide(func() string {
 		return "../../src/taiwan-latest.osm.pbf"
 	})
-	c.Provide(func() string {
-		return "../../src/taiwan-latest.osm.pbf"
-	})
+	c.Provide(bitmask.NewPBFIndexMap)
 
-	var m map[int64]int
+	var m *bitmask.PBFIndexMap
 	err := c.Invoke(func(parser PBFIndexParser) {
-		parser.Run()
+		if err := parser.Run(); err != nil {
+			t.Error(err)
+		}
 		m = parser.GetMap()
 	})
 
 	if err != nil {
 		t.Error(err)
-	}
-
-	for k, v := range m {
-		t.Log(k, v)
 	}
 }

@@ -18,4 +18,5 @@ type PBFParserParams struct {
 	LevelDBPath              string        `name:"levelDBPath"`
 	PBFIndexer               PBFDataParser `name:"pbfIndexer"`
 	PBFRelationMemberIndexer PBFDataParser `name:"pbfRelationMemberIndexer"`
+	BatchSize                int           `name:"batchSize"`
 }

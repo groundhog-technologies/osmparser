@@ -32,6 +32,12 @@ func TestPBFParser(t *testing.T) {
 		},
 		dig.Name("levelDBPath"),
 	)
+	c.Provide(
+		func() int {
+			return 5000
+		},
+		dig.Name("batchSize"),
+	)
 
 	c.Provide(NewPBFParser)
 

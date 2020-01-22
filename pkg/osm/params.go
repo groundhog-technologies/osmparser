@@ -15,7 +15,7 @@ type DefaultPBFParserParams struct {
 // PBFParserParams .
 type PBFParserParams struct {
 	dig.In
-	LevelDBPath              string         `name:"levelDBPath"`
-	PBFIndexer               PBFIndexParser `name:"pbfIndexer"`
-	PBFRelationMemberIndexer PBFIndexParser `name:"pbfRelationMemberIndexer"`
+	LevelDBPath              string        `name:"levelDBPath"`
+	PBFIndexer               PBFDataParser `name:"pbfIndexer"`
+	PBFRelationMemberIndexer PBFDataParser `name:"pbfRelationMemberIndexer"`
 }

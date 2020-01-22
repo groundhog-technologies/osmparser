@@ -27,8 +27,8 @@ type PBFParser struct {
 	dig.In
 	PBFFile                  string
 	LevelDBPath              string
-	PBFIndexer               PBFIndexParser
-	PBFRelationMemberIndexer PBFIndexParser
+	PBFIndexer               PBFDataParser
+	PBFRelationMemberIndexer PBFDataParser
 	PBFMasks                 *bitmask.PBFMasks
 }
 

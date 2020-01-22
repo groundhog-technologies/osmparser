@@ -22,7 +22,7 @@ func TestPBFIndexer(t *testing.T) {
 	)
 	c.Provide(NewPBFIndexer)
 
-	err := c.Invoke(func(parser PBFIndexParser) {
+	err := c.Invoke(func(parser PBFDataParser) {
 		if err := parser.Run(); err != nil {
 			t.Error(err)
 		}

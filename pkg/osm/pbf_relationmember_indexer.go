@@ -8,7 +8,7 @@ import (
 )
 
 // NewPBFRelationMemberIndexer .
-func NewPBFRelationMemberIndexer(params DefaultPBFParserParams) PBFIndexParser {
+func NewPBFRelationMemberIndexer(params DefaultPBFParserParams) PBFDataParser {
 	return &PBFRelationMemberIndexer{
 		PBFFile:  params.PBFFile,
 		PBFMasks: params.PBFMasks,
@@ -20,11 +20,6 @@ type PBFRelationMemberIndexer struct {
 	PBFFile  string
 	PBFMasks *bitmask.PBFMasks
 	MapLock  sync.RWMutex
-}
-
-// GetMap .
-func (p *PBFRelationMemberIndexer) GetMap() *bitmask.PBFMasks {
-	return p.PBFMasks
 }
 
 // Run .

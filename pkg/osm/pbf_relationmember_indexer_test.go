@@ -22,7 +22,7 @@ func TestPBFRelationMemberIndexer(t *testing.T) {
 	)
 	c.Provide(NewPBFRelationMemberIndexer)
 
-	err := c.Invoke(func(parser PBFIndexParser) {
+	err := c.Invoke(func(parser PBFDataParser) {
 		if err := parser.Run(); err != nil {
 			t.Error(err)
 		}

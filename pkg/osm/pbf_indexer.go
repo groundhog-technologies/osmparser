@@ -8,7 +8,7 @@ import (
 )
 
 // NewPBFIndexer .
-func NewPBFIndexer(params DefaultPBFParserParams) PBFIndexParser {
+func NewPBFIndexer(params DefaultPBFParserParams) PBFDataParser {
 	return &PBFIndexer{
 		PBFFile:  params.PBFFile,
 		PBFMasks: params.PBFMasks,
@@ -20,11 +20,6 @@ type PBFIndexer struct {
 	PBFFile  string
 	PBFMasks *bitmask.PBFMasks
 	MapLock  sync.RWMutex
-}
-
-// GetMap .
-func (p *PBFIndexer) GetMap() *bitmask.PBFMasks {
-	return p.PBFMasks
 }
 
 // Run .

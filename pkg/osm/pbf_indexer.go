@@ -1,7 +1,6 @@
 package osm
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/thomersch/gosmparse"
 	"os"
 	"osmparser/pkg/bitmask"
@@ -9,10 +8,10 @@ import (
 )
 
 // NewPBFIndexer .
-func NewPBFIndexer(pbfFile string, pbfMasks *bitmask.PBFMasks) PBFIndexParser {
+func NewPBFIndexer(params DefaultPBFParserParams) PBFIndexParser {
 	return &PBFIndexer{
-		PBFFile:  pbfFile,
-		PBFMasks: pbfMasks,
+		PBFFile:  params.PBFFile,
+		PBFMasks: params.PBFMasks,
 	}
 }
 
@@ -40,7 +39,6 @@ func (p *PBFIndexer) Run() error {
 	if err := decoder.Parse(p); err != nil {
 		return err
 	}
-	logrus.Info("456")
 	return nil
 }
 

@@ -3,23 +3,30 @@ package osm
 import (
 	"github.com/sirupsen/logrus"
 	"github.com/thomersch/gosmparse"
-	// "os"
+	"go.uber.org/dig"
+	"os"
 	"osmparser/pkg/bitmask"
 )
 
 // NewPBFParser .
-func NewPBFParser(pbfFile string, pbfIndexer PBFIndexParser, pbfRelationMemberIndexer PBFRelationMemberIndexParser, pbfMasks *bitmask.PBFMasks) PBFDataParser {
+func NewPBFParser(
+	defaultParams DefaultPBFParserParams,
+	params PBFParserParams,
+) PBFDataParser {
 	return &PBFParser{
-		PBFFile:                  pbfFile,
-		PBFIndexer:               pbfIndexer,
-		PBFRelationMemberIndexer: pbfRelationMemberIndexer,
-		PBFMasks:                 pbfMasks,
+		PBFFile:                  defaultParams.PBFFile,
+		PBFMasks:                 defaultParams.PBFMasks,
+		PBFIndexer:               params.PBFIndexer,
+		LevelDBPath:              params.LevelDBPath,
+		PBFRelationMemberIndexer: params.PBFRelationMemberIndexer,
 	}
 }
 
 // PBFParser .
 type PBFParser struct {
+	dig.In
 	PBFFile                  string
+	LevelDBPath              string
 	PBFIndexer               PBFIndexParser
 	PBFRelationMemberIndexer PBFIndexParser
 	PBFMasks                 *bitmask.PBFMasks
@@ -42,11 +49,25 @@ func (p *PBFParser) Run() error {
 		return err
 	}
 	p.PBFMasks.Print()
+
+	reader, err := os.Open(p.PBFFile)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	decoder := gosmparse.NewDecoder(reader)
+	if err := decoder.Parse(p); err != nil {
+		return err
+	}
 	return nil
 }
 
 // ReadNode .
-func (p *PBFParser) ReadNode(n gosmparse.Node) {}
+func (p *PBFParser) ReadNode(n gosmparse.Node) {
+	if p.PBFMasks.WayRefs.Has(n.ID) || p.PBFMasks.RelNodes.Has(n.ID) {
+	}
+}
 
 // ReadWay .
 func (p *PBFParser) ReadWay(w gosmparse.Way) {}

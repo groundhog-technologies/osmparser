@@ -1,7 +1,6 @@
 package osm
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/thomersch/gosmparse"
 	"os"
 	"osmparser/pkg/bitmask"
@@ -9,10 +8,10 @@ import (
 )
 
 // NewPBFRelationMemberIndexer .
-func NewPBFRelationMemberIndexer(pbfFile string, pbfMasks *bitmask.PBFMasks) PBFRelationMemberIndexParser {
+func NewPBFRelationMemberIndexer(params DefaultPBFParserParams) PBFIndexParser {
 	return &PBFRelationMemberIndexer{
-		PBFFile:  pbfFile,
-		PBFMasks: pbfMasks,
+		PBFFile:  params.PBFFile,
+		PBFMasks: params.PBFMasks,
 	}
 }
 
@@ -40,7 +39,6 @@ func (p *PBFRelationMemberIndexer) Run() error {
 	if err := decoder.Parse(p); err != nil {
 		return err
 	}
-	logrus.Info("123")
 	return nil
 }
 

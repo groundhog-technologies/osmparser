@@ -8,22 +8,26 @@ import (
 
 func TestPBFIndexer(t *testing.T) {
 	c := dig.New()
+	c.Provide(
+		func() string {
+			return "../../src/taiwan-latest.osm.pbf"
+		},
+		dig.Name("pbfFile"),
+	)
+	c.Provide(
+		func() *bitmask.PBFMasks {
+			return bitmask.NewPBFMasks()
+		},
+		dig.Name("pbfMasks"),
+	)
 	c.Provide(NewPBFIndexer)
-	c.Provide(func() string {
-		return "../../src/taiwan-latest.osm.pbf"
-	})
-	c.Provide(bitmask.NewPBFMasks)
 
-	var m *bitmask.PBFMasks
 	err := c.Invoke(func(parser PBFIndexParser) {
 		if err := parser.Run(); err != nil {
 			t.Error(err)
 		}
-		m = parser.GetMap()
 	})
-
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(m)
 }

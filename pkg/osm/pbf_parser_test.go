@@ -9,16 +9,31 @@ import (
 func TestPBFParser(t *testing.T) {
 
 	c := dig.New()
-	c.Provide(NewPBFIndexer)
-	c.Provide(NewPBFRelationMemberIndexer)
+
+	// Default params .
+	c.Provide(
+		func() string {
+			return "../../src/taiwan-latest.osm.pbf"
+		},
+		dig.Name("pbfFile"),
+	)
+	c.Provide(
+		func() *bitmask.PBFMasks {
+			return bitmask.NewPBFMasks()
+		},
+		dig.Name("pbfMasks"),
+	)
+	// Params
+	c.Provide(NewPBFIndexer, dig.Name("pbfIndexer"))
+	c.Provide(NewPBFRelationMemberIndexer, dig.Name("pbfRelationMemberIndexer"))
+	c.Provide(
+		func() string {
+			return "/tmp/osmparser"
+		},
+		dig.Name("levelDBPath"),
+	)
+
 	c.Provide(NewPBFParser)
-	c.Provide(func() string {
-		return "../../src/taiwan-latest.osm.pbf"
-	})
-	masks := bitmask.NewPBFMasks()
-	c.Provide(func() *bitmask.PBFMasks {
-		return masks
-	})
 
 	err := c.Invoke(func(parser PBFDataParser) {
 		if err := parser.Run(); err != nil {

@@ -1,6 +1,8 @@
 package osm
 
 import (
+	"bytes"
+	"encoding/gob"
 	"github.com/paulmach/go.geojson"
 	"github.com/thomersch/gosmparse"
 )
@@ -26,28 +28,21 @@ func (e *Element) ToJSON() []byte {
 	return rawJSON
 }
 
-type jsonNode struct {
-	ID   int64             `json:"id"`
-	Type string            `json:"type"`
-	Lat  float64           `json:"lat"`
-	Lon  float64           `json:"lon"`
-	Tags map[string]string `json:"tags"`
+// ToByte .
+func (e *Element) ToByte() ([]byte, error) {
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+	err := encoder.Encode(e)
+	if err != nil {
+		return []byte{}, err
+	}
+	return buf.Bytes(), nil
 }
 
-type jsonWay struct {
-	ID   int64             `json:"id"`
-	Type string            `json:"type"`
-	Tags map[string]string `json:"tags"`
-	// NodeIDs   []int64             `json:"refs"`
-	Centroid map[string]string   `json:"centroid"`
-	Bounds   map[string]string   `json:"bounds"`
-	Nodes    []map[string]string `json:"nodes,omitempty"`
-}
-
-type jsonRelation struct {
-	ID       int64             `json:"id"`
-	Type     string            `json:"type"`
-	Tags     map[string]string `json:"tags"`
-	Centroid map[string]string `json:"centroid"`
-	Bounds   map[string]string `json:"bounds"`
+// Transform byte to element.
+func ByteToElement(byteArr []byte) (*Element, error) {
+	decoder := gob.NewDecoder(bytes.NewReader(byteArr))
+	var element Element
+	err := decoder.Decode(&element)
+	return &element, err
 }

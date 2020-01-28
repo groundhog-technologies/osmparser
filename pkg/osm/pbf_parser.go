@@ -3,7 +3,7 @@ package osm
 import (
 	"bytes"
 	"encoding/binary"
-	// "fmt"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -130,7 +130,7 @@ func (p *PBFParser) Run() error {
 				}
 
 				if p.PBFMasks.Ways.Has(way.ID) {
-					latLons, err := p.cacheLookupNodes(way)
+					latLons, err := p.cacheLookupNodes(&way)
 					// skip ways which fail to denormalize.
 					if err != nil {
 						continue
@@ -143,6 +143,17 @@ func (p *PBFParser) Run() error {
 					if p.Batch.Len() > 1 {
 						p.cacheFlush(true)
 					}
+				}
+
+				relation := element.Relation
+
+				if p.PBFMasks.Relations.Has(relation.ID) {
+					memberWayLatLons, err := p.findMemberWayLatLons(&relation)
+					// Skip way if fails to denormalize.
+					if err != nil {
+						continue
+					}
+					logrus.Info(memberWayLatLons)
 				}
 			}
 		}
@@ -222,7 +233,7 @@ func (p *PBFParser) wayToBytes(w gosmparse.Way) (string, []byte) {
 	return strID, buf.Bytes()
 }
 
-func (p *PBFParser) cacheLookupNodes(way gosmparse.Way) ([]map[string]string, error) {
+func (p *PBFParser) cacheLookupNodes(way *gosmparse.Way) ([]map[string]string, error) {
 	var container []map[string]string
 	for _, nodeID := range way.NodeIDs {
 		strID := strconv.FormatInt(nodeID, 10)
@@ -244,4 +255,44 @@ func (p *PBFParser) cacheLookupNodes(way gosmparse.Way) ([]map[string]string, er
 		container = append(container, latLon)
 	}
 	return container, nil
+}
+
+func (p *PBFParser) cacheLookupWayNodes(wayID int64) ([]map[string]string, error) {
+	strID := "W" + strconv.FormatInt(wayID, 10)
+	relData, err := p.DB.Get([]byte(strID), nil)
+	if err != nil {
+		return make([]map[string]string, 0), err
+	}
+
+	// bytes to ID slice.
+	var ids []int64
+	if len(relData)%8 != 0 {
+		ids = make([]int64, 0)
+		return make([]map[string]string, 0),
+			fmt.Errorf("Lookup failed for way: %v, noderefs not found: %v", wayID, strID)
+	}
+	for i := 0; i < len(relData)/8; i++ {
+		ids = append(ids, int64(binary.BigEndian.Uint64(relData[i*8:(i*8)+8])))
+	}
+
+	var way = gosmparse.Way{
+		NodeIDs: ids,
+	}
+	return p.cacheLookupNodes(&way)
+}
+
+func (p *PBFParser) findMemberWayLatLons(relation *gosmparse.Relation) ([][]map[string]string, error) {
+	var memberWayLatLons [][]map[string]string
+
+	for _, mem := range relation.Members {
+		if mem.Type == 1 {
+			latLons, err := p.cacheLookupWayNodes(mem.ID)
+			// Skip way if fails to denormalize.
+			if err != nil {
+				return make([][]map[string]string, 0), err
+			}
+			memberWayLatLons = append(memberWayLatLons, latLons)
+		}
+	}
+	return memberWayLatLons, nil
 }

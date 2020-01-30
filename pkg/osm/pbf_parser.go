@@ -3,12 +3,13 @@ package osm
 import (
 	"bytes"
 	"encoding/binary"
-	// "fmt"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/thomersch/gosmparse"
 	"go.uber.org/dig"
+	"io"
 	"math"
 	"os"
 	"osmparser/pkg/bitmask"
@@ -57,7 +58,11 @@ func (p *PBFParser) GetMap() *bitmask.PBFMasks {
 // Run .
 func (p *PBFParser) Run() error {
 	// Prepare
-	db, err := leveldb.OpenFile(p.LevelDBPath, nil)
+	db, err := leveldb.OpenFile(
+		p.LevelDBPath,
+		// Disable cache to avoid memory issue.
+		&opt.Options{DisableBlockCache: true},
+	)
 	if err != nil {
 		return err
 	}
@@ -71,6 +76,7 @@ func (p *PBFParser) Run() error {
 	if err := p.PBFRelationMemberIndexer.Run(); err != nil {
 		return err
 	}
+	logrus.Info("Finish index")
 
 	reader, err := os.Open(p.PBFFile)
 	if err != nil {
@@ -78,18 +84,19 @@ func (p *PBFParser) Run() error {
 	}
 	defer reader.Close()
 
+	// First round.
+	// Put way refs, relation member in to db.
+
 	// Before run.
 	p.Batch = new(leveldb.Batch)
 	p.ElementChan = make(chan Element, 10)
-	var finishNode, finishWay bool
 
 	// Sync
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	firstRoundWg := sync.WaitGroup{}
+	firstRoundWg.Add(1)
 
 	go func() {
-		defer wg.Done()
-		numNode := 0
+		defer firstRoundWg.Done()
 		for element := range p.ElementChan {
 			switch element.Type {
 			case "Node":
@@ -103,23 +110,7 @@ func (p *PBFParser) Run() error {
 					)
 					p.checkBatch()
 				}
-				if p.PBFMasks.Nodes.Has(element.Node.ID) {
-					// fmt.Println(string(element.ToJSON()))
-				}
-				numNode++
-				if numNode%1000000 == 0 {
-					logrus.Infof("Num: %v", numNode)
-				}
 			case "Way":
-				// Flush outstanding node batches before processing any ways.
-				if !finishNode {
-					finishNode = true
-					logrus.Info("Finish Node")
-					if p.Batch.Len() > 1 {
-						p.cacheFlush(true)
-					}
-				}
-
 				// Write relation member way to db.
 				if p.PBFMasks.RelWays.Has(element.Way.ID) {
 					elementByte, err := element.ToByte()
@@ -133,24 +124,8 @@ func (p *PBFParser) Run() error {
 					)
 					p.checkBatch()
 				}
-
-				if p.PBFMasks.Ways.Has(element.Way.ID) {
-					elements, err := p.cacheLookupWayElements(&element.Way)
-					// skip ways which fail to denormalize.
-					if err != nil {
-						continue
-					}
-					element.Elements = elements
-				}
 			case "Relation":
-				if !finishWay {
-					finishWay = true
-					logrus.Info("Finish Way")
-					if p.Batch.Len() > 1 {
-						p.cacheFlush(true)
-					}
-				}
-
+				// Write relation Member into db.
 				if p.PBFMasks.RelRelation.Has(element.Relation.ID) {
 					elementByte, err := element.ToByte()
 					if err != nil {
@@ -163,14 +138,61 @@ func (p *PBFParser) Run() error {
 					)
 					p.checkBatch()
 				}
+			}
+		}
+	}()
+	firstRoundDecoder := gosmparse.NewDecoder(reader)
+	if err := firstRoundDecoder.Parse(p); err != nil {
+		return err
+	}
+	close(p.ElementChan)
+	firstRoundWg.Wait()
+	p.cacheFlush(true)
+	logrus.Info("Finish first round.")
+	reader.Seek(io.SeekStart, 0) // rewind file.
 
-				if p.PBFMasks.Relations.Has(element.Relation.ID) {
-					elements, err := p.cacheLookupRelationElements(&element.Relation)
+	// Final round.
+	// Real process for parse pbf file.
+
+	// Before run.
+	p.Batch = new(leveldb.Batch)
+	p.ElementChan = make(chan Element, 10)
+
+	// Sync
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		num := 0
+		for element := range p.ElementChan {
+			num++
+			if num%10000 == 0 {
+				logrus.Info(num)
+			}
+			switch element.Type {
+			case "Node":
+				if p.PBFMasks.Nodes.Has(element.Node.ID) {
+					fmt.Println(string(element.ToJSON()))
+				}
+			case "Way":
+				if p.PBFMasks.Ways.Has(element.Way.ID) {
+					elements, err := p.cacheLookupWayElements(&element.Way)
+					// skip ways which fail to denormalize.
 					if err != nil {
-						logrus.Error(err)
 						continue
 					}
 					element.Elements = elements
+				}
+			case "Relation":
+				if p.PBFMasks.Relations.Has(element.Relation.ID) {
+					elements, err := p.cacheLookupRelationElements(&element.Relation, []int64{})
+					// skip ways which fail to denormalize.
+					if err != nil {
+						continue
+					}
+					element.Elements = elements
+					// logrus.Infof("%+v", element)
 				}
 			}
 		}
@@ -209,6 +231,7 @@ func (p *PBFParser) ReadRelation(r gosmparse.Relation) {
 	}
 }
 
+// checkBatch check if need flush batch.
 func (p *PBFParser) checkBatch() {
 	if p.Batch.Len() > p.BatchSize {
 		if err := p.cacheFlush(true); err != nil {
@@ -217,6 +240,7 @@ func (p *PBFParser) checkBatch() {
 	}
 }
 
+// cacheFlush flush batch write to db.
 func (p *PBFParser) cacheFlush(sync bool) error {
 	writeOpts := &opt.WriteOptions{
 		NoWriteMerge: true,
@@ -230,6 +254,7 @@ func (p *PBFParser) cacheFlush(sync bool) error {
 	return nil
 }
 
+// nodeToBytes transfrom node to bytes.
 func (p *PBFParser) nodeToBytes(n gosmparse.Node) (string, []byte) {
 	var buf bytes.Buffer
 
@@ -246,6 +271,7 @@ func (p *PBFParser) nodeToBytes(n gosmparse.Node) (string, []byte) {
 	return strconv.FormatInt(n.ID, 10), buf.Bytes()
 }
 
+// bytesToNodeElement transfrom node from bytes to element.
 func (p *PBFParser) bytesToNodeElement(data []byte) Element {
 
 	node := gosmparse.Node{}
@@ -263,28 +289,37 @@ func (p *PBFParser) bytesToNodeElement(data []byte) Element {
 	}
 }
 
+// cacheLookupWayElements get refs node from db.
 func (p *PBFParser) cacheLookupWayElements(way *gosmparse.Way) ([]Element, error) {
 	var elements []Element
 	for _, nodeID := range way.NodeIDs {
 		strID := strconv.FormatInt(nodeID, 10)
-		data, err := p.DB.Get([]byte(strID), nil)
+		data, err := p.DB.Get(
+			[]byte(strID),
+			nil,
+		)
 		if err != nil {
 			return []Element{}, err
 		}
 		element := p.bytesToNodeElement(data)
 		elements = append(elements, element)
-
 	}
 	return elements, nil
 }
 
-func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation) ([]Element, error) {
+func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation, blacklist []int64) ([]Element, error) {
 	var elements []Element
+
+	// blacklist to avoid recursive relation member.
+	blacklist = append(blacklist, relation.ID)
 	for _, member := range relation.Members {
 		strID := strconv.FormatInt(member.ID, 10)
 		switch member.Type {
 		case 0: // Node
-			nodeBytes, err := p.DB.Get([]byte(strID), nil)
+			nodeBytes, err := p.DB.Get(
+				[]byte(strID),
+				nil,
+			)
 			if err != nil {
 				logrus.Error(err)
 				return []Element{}, err
@@ -292,7 +327,11 @@ func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation) ([
 			element := p.bytesToNodeElement(nodeBytes)
 			elements = append(elements, element)
 		case 1: // Way
-			elementByte, err := p.DB.Get([]byte("W"+strID), nil)
+			// Get element from db.
+			elementByte, err := p.DB.Get(
+				[]byte("W"+strID),
+				nil,
+			)
 			if err != nil {
 				logrus.Error(err)
 				return []Element{}, err
@@ -302,6 +341,7 @@ func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation) ([
 				logrus.Error(err)
 				return []Element{}, err
 			}
+			// Get ref nodes from db.
 			nodeElements, err := p.cacheLookupWayElements(&element.Way)
 			if err != nil {
 				logrus.Error(err)
@@ -311,7 +351,22 @@ func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation) ([
 			element.Role = member.Role
 			elements = append(elements, element)
 		case 2: // Relation
-			elementByte, err := p.DB.Get([]byte("R"+strID), nil)
+			// Skip if relation recursive. A -> B -> A
+			var recursive bool
+			for _, blackID := range blacklist {
+				if member.ID == blackID {
+					recursive = true
+				}
+			}
+			if recursive {
+				continue
+			}
+
+			// Get element from db.
+			elementByte, err := p.DB.Get(
+				[]byte("R"+strID),
+				nil,
+			)
 			if err != nil {
 				logrus.Error(err)
 				return []Element{}, err
@@ -321,7 +376,9 @@ func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation) ([
 				logrus.Error(err)
 				return []Element{}, err
 			}
-			newElements, err := p.cacheLookupRelationElements(&element.Relation)
+
+			// Get relation member elements.
+			newElements, err := p.cacheLookupRelationElements(&element.Relation, blacklist)
 			if err != nil {
 				logrus.Error(err)
 				return []Element{}, err

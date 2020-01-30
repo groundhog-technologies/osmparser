@@ -1,10 +1,16 @@
 package osm
 
 import (
+	"github.com/onrik/logrus/filename"
+	"github.com/sirupsen/logrus"
 	"go.uber.org/dig"
 	"osmparser/pkg/bitmask"
 	"testing"
 )
+
+func init() {
+	logrus.AddHook(filename.NewHook())
+}
 
 func TestPBFParser(t *testing.T) {
 

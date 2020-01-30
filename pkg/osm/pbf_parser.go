@@ -3,7 +3,7 @@ package osm
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
+	// "fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -89,71 +89,88 @@ func (p *PBFParser) Run() error {
 
 	go func() {
 		defer wg.Done()
+		numNode := 0
 		for element := range p.ElementChan {
 			switch element.Type {
 			case "Node":
-				node := element.Node
 				// Write way refs and relation member nodes to db.
-				if p.PBFMasks.WayRefs.Has(node.ID) || p.PBFMasks.RelNodes.Has(node.ID) {
-					id, val := p.nodeToBytes(node)
+				if p.PBFMasks.WayRefs.Has(element.Node.ID) || p.PBFMasks.RelNodes.Has(element.Node.ID) {
+					id, val := p.nodeToBytes(element.Node)
 					// CacheQueue
-					p.Batch.Put([]byte(id), []byte(val))
-
-					if p.Batch.Len() > p.BatchSize {
-						if err := p.cacheFlush(true); err != nil {
-							logrus.Fatal(err)
-						}
-					}
+					p.Batch.Put(
+						[]byte(id),
+						[]byte(val),
+					)
+					p.checkBatch()
 				}
-				if p.PBFMasks.Nodes.Has(node.ID) {
+				if p.PBFMasks.Nodes.Has(element.Node.ID) {
 					// fmt.Println(string(element.ToJSON()))
+				}
+				numNode++
+				if numNode%1000000 == 0 {
+					logrus.Infof("Num: %v", numNode)
 				}
 			case "Way":
 				// Flush outstanding node batches before processing any ways.
 				if !finishNode {
 					finishNode = true
+					logrus.Info("Finish Node")
 					if p.Batch.Len() > 1 {
 						p.cacheFlush(true)
 					}
 				}
-				way := element.Way
 
 				// Write relation member way to db.
-				if p.PBFMasks.RelWays.Has(way.ID) {
-					id, val := p.wayToBytes(way)
-					p.Batch.Put([]byte(id), []byte(val))
-					if p.Batch.Len() > p.BatchSize {
-						if err := p.cacheFlush(true); err != nil {
-							logrus.Fatal(err)
-						}
+				if p.PBFMasks.RelWays.Has(element.Way.ID) {
+					elementByte, err := element.ToByte()
+					if err != nil {
+						logrus.Error(err)
+						continue
 					}
+					p.Batch.Put(
+						[]byte("W"+strconv.FormatInt(element.Way.ID, 10)),
+						elementByte,
+					)
+					p.checkBatch()
 				}
 
-				if p.PBFMasks.Ways.Has(way.ID) {
-					latLons, err := p.cacheLookupNodes(&way)
+				if p.PBFMasks.Ways.Has(element.Way.ID) {
+					elements, err := p.cacheLookupWayElements(&element.Way)
 					// skip ways which fail to denormalize.
 					if err != nil {
 						continue
 					}
-					logrus.Info(latLons)
+					element.Elements = elements
 				}
 			case "Relation":
 				if !finishWay {
 					finishWay = true
+					logrus.Info("Finish Way")
 					if p.Batch.Len() > 1 {
 						p.cacheFlush(true)
 					}
 				}
 
-				relation := element.Relation
-
-				if p.PBFMasks.Relations.Has(relation.ID) {
-					memberWayLatLons, err := p.findMemberWayLatLons(&relation)
-					// Skip way if fails to denormalize.
+				if p.PBFMasks.RelRelation.Has(element.Relation.ID) {
+					elementByte, err := element.ToByte()
 					if err != nil {
+						logrus.Error(err)
 						continue
 					}
-					logrus.Info(memberWayLatLons)
+					p.Batch.Put(
+						[]byte("R"+strconv.FormatInt(element.Relation.ID, 10)),
+						elementByte,
+					)
+					p.checkBatch()
+				}
+
+				if p.PBFMasks.Relations.Has(element.Relation.ID) {
+					elements, err := p.cacheLookupRelationElements(&element.Relation)
+					if err != nil {
+						logrus.Error(err)
+						continue
+					}
+					element.Elements = elements
 				}
 			}
 		}
@@ -192,6 +209,14 @@ func (p *PBFParser) ReadRelation(r gosmparse.Relation) {
 	}
 }
 
+func (p *PBFParser) checkBatch() {
+	if p.Batch.Len() > p.BatchSize {
+		if err := p.cacheFlush(true); err != nil {
+			logrus.Fatal(err)
+		}
+	}
+}
+
 func (p *PBFParser) cacheFlush(sync bool) error {
 	writeOpts := &opt.WriteOptions{
 		NoWriteMerge: true,
@@ -221,78 +246,90 @@ func (p *PBFParser) nodeToBytes(n gosmparse.Node) (string, []byte) {
 	return strconv.FormatInt(n.ID, 10), buf.Bytes()
 }
 
-func (p *PBFParser) wayToBytes(w gosmparse.Way) (string, []byte) {
-	strID := "W" + strconv.FormatInt(w.ID, 10)
-	// ids to bytes
-	var buf bytes.Buffer
-	for _, id := range w.NodeIDs {
-		var idBytes = make([]byte, 8)
-		binary.BigEndian.PutUint64(idBytes, uint64(id))
-		buf.Write(idBytes)
+func (p *PBFParser) bytesToNodeElement(data []byte) Element {
+
+	node := gosmparse.Node{}
+	// bytes to LatLon .
+	var latBytes = append([]byte{}, data[0:8]...)
+	var lat = math.Float64frombits(binary.BigEndian.Uint64(latBytes))
+	node.Lat = lat
+
+	var lonBytes = append([]byte{}, data[8:16]...)
+	var lon = math.Float64frombits(binary.BigEndian.Uint64(lonBytes))
+	node.Lon = lon
+	return Element{
+		Type: "Node",
+		Node: node,
 	}
-	return strID, buf.Bytes()
 }
 
-func (p *PBFParser) cacheLookupNodes(way *gosmparse.Way) ([]map[string]string, error) {
-	var container []map[string]string
+func (p *PBFParser) cacheLookupWayElements(way *gosmparse.Way) ([]Element, error) {
+	var elements []Element
 	for _, nodeID := range way.NodeIDs {
 		strID := strconv.FormatInt(nodeID, 10)
 		data, err := p.DB.Get([]byte(strID), nil)
 		if err != nil {
-			return make([]map[string]string, 0), err
+			return []Element{}, err
 		}
+		element := p.bytesToNodeElement(data)
+		elements = append(elements, element)
 
-		// bytes to LatLon .
-		var latLon = make(map[string]string)
-		var latBytes = append([]byte{}, data[0:8]...)
-		var lat = math.Float64frombits(binary.BigEndian.Uint64(latBytes))
-		latLon["lat"] = strconv.FormatFloat(lat, 'f', 7, 64)
-
-		var lonBytes = append([]byte{}, data[8:16]...)
-		var lon = math.Float64frombits(binary.BigEndian.Uint64(lonBytes))
-		latLon["lon"] = strconv.FormatFloat(lon, 'f', 7, 64)
-
-		container = append(container, latLon)
 	}
-	return container, nil
+	return elements, nil
 }
 
-func (p *PBFParser) cacheLookupWayNodes(wayID int64) ([]map[string]string, error) {
-	strID := "W" + strconv.FormatInt(wayID, 10)
-	relData, err := p.DB.Get([]byte(strID), nil)
-	if err != nil {
-		return make([]map[string]string, 0), err
-	}
-
-	// bytes to ID slice.
-	var ids []int64
-	if len(relData)%8 != 0 {
-		ids = make([]int64, 0)
-		return make([]map[string]string, 0),
-			fmt.Errorf("Lookup failed for way: %v, noderefs not found: %v", wayID, strID)
-	}
-	for i := 0; i < len(relData)/8; i++ {
-		ids = append(ids, int64(binary.BigEndian.Uint64(relData[i*8:(i*8)+8])))
-	}
-
-	var way = gosmparse.Way{
-		NodeIDs: ids,
-	}
-	return p.cacheLookupNodes(&way)
-}
-
-func (p *PBFParser) findMemberWayLatLons(relation *gosmparse.Relation) ([][]map[string]string, error) {
-	var memberWayLatLons [][]map[string]string
-
-	for _, mem := range relation.Members {
-		if mem.Type == 1 {
-			latLons, err := p.cacheLookupWayNodes(mem.ID)
-			// Skip way if fails to denormalize.
+func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation) ([]Element, error) {
+	var elements []Element
+	for _, member := range relation.Members {
+		strID := strconv.FormatInt(member.ID, 10)
+		switch member.Type {
+		case 0: // Node
+			nodeBytes, err := p.DB.Get([]byte(strID), nil)
 			if err != nil {
-				return make([][]map[string]string, 0), err
+				logrus.Error(err)
+				return []Element{}, err
 			}
-			memberWayLatLons = append(memberWayLatLons, latLons)
+			element := p.bytesToNodeElement(nodeBytes)
+			elements = append(elements, element)
+		case 1: // Way
+			elementByte, err := p.DB.Get([]byte("W"+strID), nil)
+			if err != nil {
+				logrus.Error(err)
+				return []Element{}, err
+			}
+			element, err := ByteToElement(elementByte)
+			if err != nil {
+				logrus.Error(err)
+				return []Element{}, err
+			}
+			nodeElements, err := p.cacheLookupWayElements(&element.Way)
+			if err != nil {
+				logrus.Error(err)
+				return []Element{}, err
+			}
+			element.Elements = nodeElements
+			element.Role = member.Role
+			elements = append(elements, element)
+		case 2: // Relation
+			elementByte, err := p.DB.Get([]byte("R"+strID), nil)
+			if err != nil {
+				logrus.Error(err)
+				return []Element{}, err
+			}
+			element, err := ByteToElement(elementByte)
+			if err != nil {
+				logrus.Error(err)
+				return []Element{}, err
+			}
+			newElements, err := p.cacheLookupRelationElements(&element.Relation)
+			if err != nil {
+				logrus.Error(err)
+				return []Element{}, err
+			}
+			element.Elements = newElements
+			element.Role = member.Role
+			elements = append(elements, element)
 		}
 	}
-	return memberWayLatLons, nil
+	return elements, nil
 }

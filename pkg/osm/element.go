@@ -9,10 +9,12 @@ import (
 
 // Element .
 type Element struct {
-	Type     string
+	Type     string // Node, Way, Relation
 	Node     gosmparse.Node
 	Way      gosmparse.Way
+	Role     string
 	Relation gosmparse.Relation
+	Elements []Element
 }
 
 // ToJSON .
@@ -39,10 +41,10 @@ func (e *Element) ToByte() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Transform byte to element.
-func ByteToElement(byteArr []byte) (*Element, error) {
+// ByteToElement transform byte to element.
+func ByteToElement(byteArr []byte) (Element, error) {
 	decoder := gob.NewDecoder(bytes.NewReader(byteArr))
 	var element Element
 	err := decoder.Decode(&element)
-	return &element, err
+	return element, err
 }

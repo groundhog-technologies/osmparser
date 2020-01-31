@@ -173,7 +173,7 @@ func (p *PBFParser) Run() error {
 			switch element.Type {
 			case "Node":
 				if p.PBFMasks.Nodes.Has(element.Node.ID) {
-					fmt.Println(string(element.ToJSON()))
+					// fmt.Println(string(element.ToJSON()))
 				}
 			case "Way":
 				if p.PBFMasks.Ways.Has(element.Way.ID) {
@@ -183,6 +183,7 @@ func (p *PBFParser) Run() error {
 						continue
 					}
 					element.Elements = elements
+					// fmt.Println(string(element.ToJSON()))
 				}
 			case "Relation":
 				if p.PBFMasks.Relations.Has(element.Relation.ID) {

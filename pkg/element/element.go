@@ -1,4 +1,4 @@
-package osm
+package element
 
 import (
 	"bytes"
@@ -45,13 +45,13 @@ func (e *Element) ToJSON() []byte {
 		rawJSON = e.nodeToJSON()
 	case "Way":
 		rawJSON = e.wayToJSON()
+	case "Relation":
+		rawJSON = e.relationToJSON()
 	}
 	return rawJSON
 }
 
-// nodeToJSON transform node element to json.
-func (e *Element) nodeToJSON() []byte {
-	fc := geojson.NewFeatureCollection()
+func nodeToFeature(e *Element) *geojson.Feature {
 	f := geojson.NewPointFeature(
 		[]float64{e.Node.Lon, e.Node.Lat},
 	)
@@ -67,12 +67,19 @@ func (e *Element) nodeToJSON() []byte {
 			k, v,
 		)
 	}
+	return f
+}
+
+// nodeToJSON converts node element to json.
+func (e *Element) nodeToJSON() []byte {
+	fc := geojson.NewFeatureCollection()
+	f := nodeToFeature(e)
 	fc.AddFeature(f)
 	rawJSON, _ := fc.MarshalJSON()
 	return rawJSON
 }
 
-// wayToJSON .
+// wayToJSON converts way element to JSON.
 func (e *Element) wayToJSON() []byte {
 
 	// collect latlon
@@ -120,4 +127,9 @@ func (e *Element) wayToJSON() []byte {
 
 	rawJSON, _ := fc.MarshalJSON()
 	return rawJSON
+}
+
+// relationToJSON converts relation element to JSON.
+func (e *Element) relationToJSON() []byte {
+	return []byte{}
 }

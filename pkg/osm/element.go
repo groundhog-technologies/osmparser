@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"github.com/paulmach/go.geojson"
 	"github.com/thomersch/gosmparse"
+	"strconv"
 )
 
 // ByteToElement transform byte to element.
@@ -51,20 +52,22 @@ func (e *Element) ToJSON() []byte {
 // nodeToJSON transform node element to json.
 func (e *Element) nodeToJSON() []byte {
 	fc := geojson.NewFeatureCollection()
-	pf := geojson.NewPointFeature(
+	f := geojson.NewPointFeature(
 		[]float64{e.Node.Lon, e.Node.Lat},
 	)
 
-	pf.SetProperty("osmid", e.Node.ID)
-	pf.SetProperty("osmType", "Node")
+	nodeID := "node" + "/" + strconv.FormatInt(e.Node.ID, 10)
+	f.ID = nodeID
+	f.SetProperty("osmid", nodeID)
+	f.SetProperty("osmType", "Node")
 
 	// Add tag to property.
 	for k, v := range e.Node.Tags {
-		pf.SetProperty(
+		f.SetProperty(
 			k, v,
 		)
 	}
-	fc.AddFeature(pf)
+	fc.AddFeature(f)
 	rawJSON, _ := fc.MarshalJSON()
 	return rawJSON
 }

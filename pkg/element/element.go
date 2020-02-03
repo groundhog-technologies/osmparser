@@ -66,3 +66,19 @@ func (e *Element) relationToJSON() []byte {
 	rawJSON, _ := fc.MarshalJSON()
 	return rawJSON
 }
+
+func (e *Element) IsArea() bool {
+	// Define is way is area(polygon) or not.
+	// https://wiki.openstreetmap.org/wiki/Key:area
+	var isPolygon bool
+	if val, ok := e.Way.Tags["area"]; ok && val == "yes" {
+		// Is closedPolylines.
+		// https://wiki.openstreetmap.org/wiki/Way#Closed_way
+		if _, ok := e.Way.Tags["highway"]; ok {
+		} else if _, ok := e.Way.Tags["barrier"]; ok {
+		} else {
+			isPolygon = true
+		}
+	}
+	return isPolygon
+}

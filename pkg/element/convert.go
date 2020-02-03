@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"github.com/paulmach/go.geojson"
+	// "github.com/sirupsen/logrus"
 	"strconv"
 )
 
@@ -71,6 +72,49 @@ func WayElementToFeature(e *Element) *geojson.Feature {
 
 	// Add tag to property.
 	for k, v := range e.Way.Tags {
+		f.SetProperty(
+			k, v,
+		)
+	}
+	return f
+}
+
+func RelationElementToFeature(e *Element) *geojson.Feature {
+	var f *geojson.Feature
+
+	geometries := []*geojson.Geometry{}
+	// logrus.Infof("%+v", e.Relation)
+	if v, ok := e.Relation.Tags["type"]; ok {
+		switch v {
+		case "multipolygon":
+		default: // not area
+			for _, emtMember := range e.Elements {
+				switch emtMember.Type {
+				case "Node":
+					newF := NodeElementToFeature(&emtMember)
+					geometries = append(
+						geometries,
+						newF.Geometry,
+					)
+				case "Way":
+					newF := WayElementToFeature(&emtMember)
+					geometries = append(
+						geometries,
+						newF.Geometry,
+					)
+				case "Relation":
+					newF := RelationElementToFeature(&emtMember)
+					geometries = append(
+						geometries,
+						newF.Geometry,
+					)
+				}
+			}
+		}
+	}
+	f = geojson.NewCollectionFeature(geometries...)
+	// Add tag to property.
+	for k, v := range e.Relation.Tags {
 		f.SetProperty(
 			k, v,
 		)

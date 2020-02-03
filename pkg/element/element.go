@@ -60,5 +60,9 @@ func (e *Element) wayToJSON() []byte {
 
 // relationToJSON converts relation element to JSON.
 func (e *Element) relationToJSON() []byte {
-	return []byte{}
+	fc := geojson.NewFeatureCollection()
+	f := RelationElementToFeature(e)
+	fc.AddFeature(f)
+	rawJSON, _ := fc.MarshalJSON()
+	return rawJSON
 }

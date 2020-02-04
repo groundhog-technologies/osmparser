@@ -5,6 +5,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.uber.org/dig"
 	"osmparser/pkg/bitmask"
+	"osmparser/pkg/element"
+	"sync"
 	"testing"
 )
 
@@ -46,11 +48,30 @@ func TestPBFParser(t *testing.T) {
 	)
 
 	c.Provide(NewPBFParser)
+	outputElementChan := make(chan element.Element)
+	c.Provide(
+		func() chan element.Element { return outputElementChan },
+		dig.Name("outputElementChan"),
+	)
 
-	err := c.Invoke(func(parser PBFDataParser) {
+	err := c.Invoke(func(parser PBFDataParser) error {
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			num := 0
+			for _ = range outputElementChan {
+				num++
+				if num%100000 == 0 {
+					logrus.Infof("Element: %v", num)
+				}
+			}
+		}()
 		if err := parser.Run(); err != nil {
-			t.Error(err)
+			return err
 		}
+		wg.Wait()
+		return nil
 	})
 
 	if err != nil {

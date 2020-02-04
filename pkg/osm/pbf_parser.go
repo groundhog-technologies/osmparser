@@ -30,6 +30,7 @@ func NewPBFParser(
 		LevelDBPath:              params.LevelDBPath,
 		PBFRelationMemberIndexer: params.PBFRelationMemberIndexer,
 		BatchSize:                params.BatchSize,
+		OutputElementChan:        params.OutputElementChan,
 	}
 }
 
@@ -48,7 +49,8 @@ type PBFParser struct {
 	BatchSize   int
 
 	// Chan
-	ElementChan chan element.Element
+	ElementChan       chan element.Element
+	OutputElementChan chan element.Element
 }
 
 // GetMap .
@@ -165,15 +167,12 @@ func (p *PBFParser) Run() error {
 
 	go func() {
 		defer wg.Done()
-		num := 0
+		defer close(p.OutputElementChan)
 		for emt := range p.ElementChan {
-			num++
-			if num%10000 == 0 {
-				logrus.Info(num)
-			}
 			switch emt.Type {
 			case "Node":
 				if p.PBFMasks.Nodes.Has(emt.Node.ID) {
+					p.OutputElementChan <- emt
 					// fmt.Println(string(emt.ToJSON()))
 				}
 			case "Way":
@@ -184,7 +183,7 @@ func (p *PBFParser) Run() error {
 						continue
 					}
 					emt.Elements = emts
-					// fmt.Println(string(emt.ToJSON()))
+					p.OutputElementChan <- emt
 				}
 			case "Relation":
 				if p.PBFMasks.Relations.Has(emt.Relation.ID) {
@@ -194,7 +193,7 @@ func (p *PBFParser) Run() error {
 						continue
 					}
 					emt.Elements = emts
-					// logrus.Infof("%+v", emt)
+					p.OutputElementChan <- emt
 				}
 			}
 		}

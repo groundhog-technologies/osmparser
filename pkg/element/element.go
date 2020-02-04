@@ -17,6 +17,19 @@ type Element struct {
 	Elements []Element
 }
 
+func (e *Element) GetID() int64 {
+	var id int64
+	switch e.Type {
+	case "Node":
+		id = e.Node.ID
+	case "Way":
+		id = e.Way.ID
+	case "Relation":
+		id = e.Relation.ID
+	}
+	return id
+}
+
 func (e *Element) GetName() (string, bool) {
 	var isName bool
 	var name string

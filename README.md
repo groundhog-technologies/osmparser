@@ -20,4 +20,16 @@ All data is given as Feature Collection.
     - If `area` is yes:
         - If `highway=*` or `barrier=*`:
             - `GeometryLineString`
-        - `GeometryPolygon`
+        - Else:
+            - `GeometryPolygon`
+
+- `Relation`:
+
+    - If `type=multipolygon`:
+        - GeometryMultipolygon
+
+    - Else `type=*` or no type:
+        - `GeometryCollection`
+
+    - Note:
+        - Remove recursive relationmember.

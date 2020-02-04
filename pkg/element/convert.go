@@ -3,9 +3,7 @@ package element
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 	"github.com/paulmach/go.geojson"
-	"github.com/sirupsen/logrus"
 	"reflect"
 	"strconv"
 )
@@ -75,114 +73,151 @@ func WayElementToFeature(e *Element) *geojson.Feature {
 func RelationElementToFeature(e *Element) *geojson.Feature {
 	var f *geojson.Feature
 
-	// logrus.Infof("%+v", e.Relation)
+	// Check type.
 	var isMultiPolygon bool
 	if v, ok := e.Relation.Tags["type"]; ok {
-		switch v {
-		case "multipolygon":
+		if v == "multipolygon" {
 			isMultiPolygon = true
-			multiPolygon := [][][][]float64{}
 
-			latLons := [][]float64{}
-			polygon := [][][]float64{}
-			pendingInnerPolygon := [][][]float64{}
-			for _, emtMember := range e.Elements {
-				var newF *geojson.Feature
-				switch emtMember.Type {
-				case "Node":
-					newF = NodeElementToFeature(&emtMember)
-				case "Way":
-					newF = WayElementToFeature(&emtMember)
-				case "Relation":
-					newF = RelationElementToFeature(&emtMember)
+		}
+	}
+	if isMultiPolygon {
+
+		multiPolygon := [][][][]float64{}
+
+		latLons := [][]float64{}
+		polygon := [][][]float64{}
+		pendingInnerPolygon := [][][]float64{}
+		for _, emtMember := range e.Elements {
+			var emtFeature *geojson.Feature
+			switch emtMember.Type {
+			case "Node":
+				emtFeature = NodeElementToFeature(&emtMember)
+			case "Way":
+				emtFeature = WayElementToFeature(&emtMember)
+			case "Relation":
+				emtFeature = RelationElementToFeature(&emtMember)
+			}
+
+			// Get latLons from element's geojson feature.
+			emtLatLons := [][]float64{}
+			switch emtFeature.Geometry.Type {
+			case geojson.GeometryPoint:
+				emtLatLons = append(emtLatLons, emtFeature.Geometry.Point)
+			case geojson.GeometryMultiPoint:
+				emtLatLons = append(emtLatLons, emtFeature.Geometry.MultiPoint...)
+			case geojson.GeometryLineString:
+				emtLatLons = append(emtLatLons, emtFeature.Geometry.LineString...)
+			case geojson.GeometryMultiLineString:
+				for _, lineString := range emtFeature.Geometry.MultiLineString {
+					emtLatLons = append(emtLatLons, lineString...)
 				}
+			case geojson.GeometryPolygon:
+				multiPolygon = append(multiPolygon, emtFeature.Geometry.Polygon)
+			case geojson.GeometryMultiPolygon:
+				multiPolygon = append(multiPolygon, emtFeature.Geometry.MultiPolygon...)
+			}
+			var emtStartPoint, emtEndPoint []float64
+			if len(emtLatLons) > 0 {
+				emtStartPoint = emtLatLons[0]
+				emtEndPoint = emtLatLons[len(emtLatLons)-1]
+			}
 
-				switch newF.Geometry.Type {
-				case geojson.GeometryPoint:
-					latLons = append(latLons, newF.Geometry.Point)
-				case geojson.GeometryMultiPoint:
-					latLons = append(latLons, newF.Geometry.MultiPoint...)
-				case geojson.GeometryLineString:
-					latLons = append(latLons, newF.Geometry.LineString...)
-				case geojson.GeometryMultiLineString:
-					for _, lineString := range newF.Geometry.MultiLineString {
-						latLons = append(latLons, lineString...)
+			// Checkint the graft point.
+			// AStart, AEnd, BStart, BEnd
+			// Cases: (AEnd, BStart), (AEnd, BEnd), (AStart, BEnd), (AStart, BStart)
+			if len(latLons) == 0 {
+				latLons = append(latLons, emtLatLons...)
+			} else {
+				checkStartPoint := latLons[0]
+				checkEndPoint := latLons[len(latLons)-1]
+				if reflect.DeepEqual(checkEndPoint, emtStartPoint) {
+					latLons = append(latLons, emtLatLons...)
+				} else if reflect.DeepEqual(checkStartPoint, emtStartPoint) {
+					newLatLons := [][]float64{}
+					for i := len(emtLatLons) - 1; i >= 0; i-- {
+						newLatLons = append(newLatLons, emtLatLons[i])
 					}
-				case geojson.GeometryPolygon:
-					multiPolygon = append(multiPolygon, newF.Geometry.Polygon)
-				case geojson.GeometryMultiPolygon:
-					multiPolygon = append(multiPolygon, newF.Geometry.MultiPolygon...)
+					latLons = append(newLatLons, latLons...)
+				} else if reflect.DeepEqual(checkEndPoint, emtEndPoint) {
+					for i := len(emtLatLons) - 1; i >= 0; i-- {
+						latLons = append(latLons, emtLatLons[i])
+					}
+				} else {
+					// Equal to reflect.DeepEqual(checkEndPoint, emtEndPoint)
+					latLons = append(emtLatLons, latLons...)
 				}
+			}
 
-				// If area?
-				if len(latLons) > 1 && reflect.DeepEqual(latLons[0], latLons[len(latLons)-1]) {
-					switch emtMember.Role {
-					case "outer":
-						if len(polygon) > 0 {
-							multiPolygon = append(multiPolygon, polygon)
-							polygon = [][][]float64{}
-						}
+			// If area?
+			// if latLons length > 1 && first point is equal to last point.
+			if len(latLons) > 1 && reflect.DeepEqual(latLons[0], latLons[len(latLons)-1]) {
+				switch emtMember.Role {
+				case "outer":
+					if len(polygon) > 0 {
+						multiPolygon = append(multiPolygon, polygon)
+						polygon = [][][]float64{}
+					}
+					polygon = append(
+						polygon,
+						latLons,
+					)
+					if len(pendingInnerPolygon) > 0 {
+						polygon = append(polygon, pendingInnerPolygon...)
+						pendingInnerPolygon = [][][]float64{}
+					}
+				case "inner":
+					if len(polygon) == 0 {
+						pendingInnerPolygon = append(
+							pendingInnerPolygon,
+							latLons,
+						)
+					} else {
 						polygon = append(
 							polygon,
 							latLons,
 						)
-						if len(pendingInnerPolygon) > 0 {
-							polygon = append(polygon, pendingInnerPolygon...)
-							pendingInnerPolygon = [][][]float64{}
-						}
-					case "inner":
-						if len(polygon) == 0 {
-							pendingInnerPolygon = append(
-								pendingInnerPolygon,
-								latLons,
-							)
-						} else {
-							polygon = append(
-								polygon,
-								latLons,
-							)
-						}
 					}
-					latLons = [][]float64{}
 				}
-				logrus.Infof("%v: %+v %+v", emtMember.Role, newF, newF.Geometry)
+				latLons = [][]float64{}
 			}
-			if len(polygon) > 0 {
-				if len(pendingInnerPolygon) > 0 {
-					polygon = append(polygon, pendingInnerPolygon...)
-				}
-				multiPolygon = append(multiPolygon, polygon)
-			}
-			f = geojson.NewMultiPolygonFeature(multiPolygon...)
-		default: // not area
-			geometries := []*geojson.Geometry{}
-			for _, emtMember := range e.Elements {
-				switch emtMember.Type {
-				case "Node":
-					newF := NodeElementToFeature(&emtMember)
-					geometries = append(
-						geometries,
-						newF.Geometry,
-					)
-				case "Way":
-					newF := WayElementToFeature(&emtMember)
-					geometries = append(
-						geometries,
-						newF.Geometry,
-					)
-				case "Relation":
-					newF := RelationElementToFeature(&emtMember)
-					geometries = append(
-						geometries,
-						newF.Geometry,
-					)
-				}
-			}
-			f = geojson.NewCollectionFeature(geometries...)
 		}
+		if len(polygon) > 0 {
+			if len(pendingInnerPolygon) > 0 {
+				polygon = append(polygon, pendingInnerPolygon...)
+			}
+			multiPolygon = append(multiPolygon, polygon)
+		}
+		f = geojson.NewMultiPolygonFeature(multiPolygon...)
+
+	} else {
+		// Sometime relation will missing type tag, so default we use CollectFeature.
+		geometries := []*geojson.Geometry{}
+		for _, emtMember := range e.Elements {
+			switch emtMember.Type {
+			case "Node":
+				emtFeature := NodeElementToFeature(&emtMember)
+				geometries = append(
+					geometries,
+					emtFeature.Geometry,
+				)
+			case "Way":
+				emtFeature := WayElementToFeature(&emtMember)
+				geometries = append(
+					geometries,
+					emtFeature.Geometry,
+				)
+			case "Relation":
+				emtFeature := RelationElementToFeature(&emtMember)
+				geometries = append(
+					geometries,
+					emtFeature.Geometry,
+				)
+			}
+		}
+		f = geojson.NewCollectionFeature(geometries...)
 	}
 	// Add tag to property.
-
 	relID := "relation" + "/" + strconv.FormatInt(e.Relation.ID, 10)
 	f.ID = relID
 	f.SetProperty("osmid", relID)
@@ -191,12 +226,6 @@ func RelationElementToFeature(e *Element) *geojson.Feature {
 		f.SetProperty(
 			k, v,
 		)
-	}
-	if isMultiPolygon {
-		fc := geojson.NewFeatureCollection()
-		fc.AddFeature(f)
-		rawJSON, _ := fc.MarshalJSON()
-		fmt.Println(string(rawJSON) + "\n----------------------------\n")
 	}
 	return f
 }

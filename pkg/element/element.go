@@ -17,6 +17,27 @@ type Element struct {
 	Elements []Element
 }
 
+func (e *Element) GetName() (string, bool) {
+	var isName bool
+	var name string
+	var tags map[string]string
+	switch e.Type {
+	case "Node":
+		tags = e.Node.Tags
+	case "Way":
+		tags = e.Node.Tags
+	case "Relation":
+		tags = e.Node.Tags
+	default:
+		tags = make(map[string]string)
+	}
+	if v, ok := tags["name"]; ok {
+		name = v
+		isName = true
+	}
+	return name, isName
+}
+
 // ToByte .
 func (e *Element) ToByte() ([]byte, error) {
 	var buf bytes.Buffer

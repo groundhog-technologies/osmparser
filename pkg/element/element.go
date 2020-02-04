@@ -47,9 +47,9 @@ func (e *Element) GetTags() map[string]string {
 	case "Node":
 		tags = e.Node.Tags
 	case "Way":
-		tags = e.Node.Tags
+		tags = e.Way.Tags
 	case "Relation":
-		tags = e.Node.Tags
+		tags = e.Relation.Tags
 	default:
 		tags = make(map[string]string)
 	}

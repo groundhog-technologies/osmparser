@@ -6,9 +6,7 @@ require (
 	github.com/benbjohnson/clock v1.0.0 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/onrik/logrus v0.4.1
-	github.com/paulmach/go.geo v0.0.0-20180829195134-22b514266d33 // indirect
 	github.com/paulmach/go.geojson v1.4.0
-	github.com/qedus/osmpbf v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.5.0

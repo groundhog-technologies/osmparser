@@ -3,7 +3,7 @@ package osm
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
+	// "fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"osmparser/pkg/bitmask"
+	"osmparser/pkg/element"
 	"strconv"
 	"sync"
 )
@@ -47,7 +48,7 @@ type PBFParser struct {
 	BatchSize   int
 
 	// Chan
-	ElementChan chan Element
+	ElementChan chan element.Element
 }
 
 // GetMap .
@@ -89,7 +90,7 @@ func (p *PBFParser) Run() error {
 
 	// Before run.
 	p.Batch = new(leveldb.Batch)
-	p.ElementChan = make(chan Element, 10)
+	p.ElementChan = make(chan element.Element, 10)
 
 	// Sync
 	firstRoundWg := sync.WaitGroup{}
@@ -156,7 +157,7 @@ func (p *PBFParser) Run() error {
 
 	// Before run.
 	p.Batch = new(leveldb.Batch)
-	p.ElementChan = make(chan Element, 10)
+	p.ElementChan = make(chan element.Element, 10)
 
 	// Sync
 	wg := sync.WaitGroup{}
@@ -165,34 +166,35 @@ func (p *PBFParser) Run() error {
 	go func() {
 		defer wg.Done()
 		num := 0
-		for element := range p.ElementChan {
+		for emt := range p.ElementChan {
 			num++
 			if num%10000 == 0 {
 				logrus.Info(num)
 			}
-			switch element.Type {
+			switch emt.Type {
 			case "Node":
-				if p.PBFMasks.Nodes.Has(element.Node.ID) {
-					fmt.Println(string(element.ToJSON()))
+				if p.PBFMasks.Nodes.Has(emt.Node.ID) {
+					// fmt.Println(string(emt.ToJSON()))
 				}
 			case "Way":
-				if p.PBFMasks.Ways.Has(element.Way.ID) {
-					elements, err := p.cacheLookupWayElements(&element.Way)
+				if p.PBFMasks.Ways.Has(emt.Way.ID) {
+					emts, err := p.cacheLookupWayElements(&emt.Way)
 					// skip ways which fail to denormalize.
 					if err != nil {
 						continue
 					}
-					element.Elements = elements
+					emt.Elements = emts
+					// fmt.Println(string(emt.ToJSON()))
 				}
 			case "Relation":
-				if p.PBFMasks.Relations.Has(element.Relation.ID) {
-					elements, err := p.cacheLookupRelationElements(&element.Relation, []int64{})
+				if p.PBFMasks.Relations.Has(emt.Relation.ID) {
+					emts, err := p.cacheLookupRelationElements(&emt.Relation, []int64{})
 					// skip ways which fail to denormalize.
 					if err != nil {
 						continue
 					}
-					element.Elements = elements
-					// logrus.Infof("%+v", element)
+					emt.Elements = emts
+					// logrus.Infof("%+v", emt)
 				}
 			}
 		}
@@ -209,7 +211,7 @@ func (p *PBFParser) Run() error {
 
 // ReadNode .
 func (p *PBFParser) ReadNode(n gosmparse.Node) {
-	p.ElementChan <- Element{
+	p.ElementChan <- element.Element{
 		Type: "Node",
 		Node: n,
 	}
@@ -217,7 +219,7 @@ func (p *PBFParser) ReadNode(n gosmparse.Node) {
 
 // ReadWay .
 func (p *PBFParser) ReadWay(w gosmparse.Way) {
-	p.ElementChan <- Element{
+	p.ElementChan <- element.Element{
 		Type: "Way",
 		Way:  w,
 	}
@@ -225,7 +227,7 @@ func (p *PBFParser) ReadWay(w gosmparse.Way) {
 
 // ReadRelation .
 func (p *PBFParser) ReadRelation(r gosmparse.Relation) {
-	p.ElementChan <- Element{
+	p.ElementChan <- element.Element{
 		Type:     "Relation",
 		Relation: r,
 	}
@@ -272,7 +274,7 @@ func (p *PBFParser) nodeToBytes(n gosmparse.Node) (string, []byte) {
 }
 
 // bytesToNodeElement transfrom node from bytes to element.
-func (p *PBFParser) bytesToNodeElement(data []byte) Element {
+func (p *PBFParser) bytesToNodeElement(data []byte) element.Element {
 
 	node := gosmparse.Node{}
 	// bytes to LatLon .
@@ -283,15 +285,15 @@ func (p *PBFParser) bytesToNodeElement(data []byte) Element {
 	var lonBytes = append([]byte{}, data[8:16]...)
 	var lon = math.Float64frombits(binary.BigEndian.Uint64(lonBytes))
 	node.Lon = lon
-	return Element{
+	return element.Element{
 		Type: "Node",
 		Node: node,
 	}
 }
 
 // cacheLookupWayElements get refs node from db.
-func (p *PBFParser) cacheLookupWayElements(way *gosmparse.Way) ([]Element, error) {
-	var elements []Element
+func (p *PBFParser) cacheLookupWayElements(way *gosmparse.Way) ([]element.Element, error) {
+	var emts []element.Element
 	for _, nodeID := range way.NodeIDs {
 		strID := strconv.FormatInt(nodeID, 10)
 		data, err := p.DB.Get(
@@ -299,16 +301,16 @@ func (p *PBFParser) cacheLookupWayElements(way *gosmparse.Way) ([]Element, error
 			nil,
 		)
 		if err != nil {
-			return []Element{}, err
+			return []element.Element{}, err
 		}
-		element := p.bytesToNodeElement(data)
-		elements = append(elements, element)
+		e := p.bytesToNodeElement(data)
+		emts = append(emts, e)
 	}
-	return elements, nil
+	return emts, nil
 }
 
-func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation, blacklist []int64) ([]Element, error) {
-	var elements []Element
+func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation, blacklist []int64) ([]element.Element, error) {
+	var emts []element.Element
 
 	// blacklist to avoid recursive relation member.
 	blacklist = append(blacklist, relation.ID)
@@ -322,10 +324,10 @@ func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation, bl
 			)
 			if err != nil {
 				logrus.Error(err)
-				return []Element{}, err
+				return []element.Element{}, err
 			}
-			element := p.bytesToNodeElement(nodeBytes)
-			elements = append(elements, element)
+			emt := p.bytesToNodeElement(nodeBytes)
+			emts = append(emts, emt)
 		case 1: // Way
 			// Get element from db.
 			elementByte, err := p.DB.Get(
@@ -334,22 +336,22 @@ func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation, bl
 			)
 			if err != nil {
 				logrus.Error(err)
-				return []Element{}, err
+				return []element.Element{}, err
 			}
-			element, err := ByteToElement(elementByte)
+			emt, err := element.ByteToElement(elementByte)
 			if err != nil {
 				logrus.Error(err)
-				return []Element{}, err
+				return []element.Element{}, err
 			}
 			// Get ref nodes from db.
-			nodeElements, err := p.cacheLookupWayElements(&element.Way)
+			nodeElements, err := p.cacheLookupWayElements(&emt.Way)
 			if err != nil {
 				logrus.Error(err)
-				return []Element{}, err
+				return []element.Element{}, err
 			}
-			element.Elements = nodeElements
-			element.Role = member.Role
-			elements = append(elements, element)
+			emt.Elements = nodeElements
+			emt.Role = member.Role
+			emts = append(emts, emt)
 		case 2: // Relation
 			// Skip if relation recursive. A -> B -> A
 			var recursive bool
@@ -369,24 +371,24 @@ func (p *PBFParser) cacheLookupRelationElements(relation *gosmparse.Relation, bl
 			)
 			if err != nil {
 				logrus.Error(err)
-				return []Element{}, err
+				return []element.Element{}, err
 			}
-			element, err := ByteToElement(elementByte)
+			emt, err := element.ByteToElement(elementByte)
 			if err != nil {
 				logrus.Error(err)
-				return []Element{}, err
+				return []element.Element{}, err
 			}
 
-			// Get relation member elements.
-			newElements, err := p.cacheLookupRelationElements(&element.Relation, blacklist)
+			// Get relation member emts.
+			newElements, err := p.cacheLookupRelationElements(&emt.Relation, blacklist)
 			if err != nil {
 				logrus.Error(err)
-				return []Element{}, err
+				return []element.Element{}, err
 			}
-			element.Elements = newElements
-			element.Role = member.Role
-			elements = append(elements, element)
+			emt.Elements = newElements
+			emt.Role = member.Role
+			emts = append(emts, emt)
 		}
 	}
-	return elements, nil
+	return emts, nil
 }

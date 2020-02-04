@@ -1,8 +1,8 @@
 package osm
 
 import (
+	"github.com/groundhog-technologies/osmparser/pkg/bitmask"
 	"go.uber.org/dig"
-	"osmparser/pkg/bitmask"
 	"testing"
 )
 

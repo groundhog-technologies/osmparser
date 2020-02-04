@@ -1,9 +1,9 @@
 package osm
 
 import (
+	"github.com/groundhog-technologies/osmparser/pkg/bitmask"
 	"github.com/thomersch/gosmparse"
 	"os"
-	"osmparser/pkg/bitmask"
 	"sync"
 )
 

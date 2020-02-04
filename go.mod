@@ -1,4 +1,4 @@
-module osmparser
+module github.com/groundhog-technologies/osmparser
 
 go 1.12
 

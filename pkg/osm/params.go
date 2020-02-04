@@ -1,9 +1,9 @@
 package osm
 
 import (
+	"github.com/groundhog-technologies/osmparser/pkg/bitmask"
+	"github.com/groundhog-technologies/osmparser/pkg/element"
 	"go.uber.org/dig"
-	"osmparser/pkg/bitmask"
-	"osmparser/pkg/element"
 )
 
 // DefaultPBFParserParams .

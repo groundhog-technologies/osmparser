@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	// "fmt"
+	"github.com/groundhog-technologies/osmparser/pkg/bitmask"
+	"github.com/groundhog-technologies/osmparser/pkg/element"
 	"github.com/sirupsen/logrus"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -12,8 +14,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"osmparser/pkg/bitmask"
-	"osmparser/pkg/element"
 	"strconv"
 	"sync"
 )

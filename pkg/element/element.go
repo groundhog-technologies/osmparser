@@ -20,6 +20,15 @@ type Element struct {
 func (e *Element) GetName() (string, bool) {
 	var isName bool
 	var name string
+	tags := e.GetTags()
+	if v, ok := tags["name"]; ok {
+		name = v
+		isName = true
+	}
+	return name, isName
+}
+
+func (e *Element) GetTags() map[string]string {
 	var tags map[string]string
 	switch e.Type {
 	case "Node":
@@ -31,11 +40,7 @@ func (e *Element) GetName() (string, bool) {
 	default:
 		tags = make(map[string]string)
 	}
-	if v, ok := tags["name"]; ok {
-		name = v
-		isName = true
-	}
-	return name, isName
+	return tags
 }
 
 // ToByte .

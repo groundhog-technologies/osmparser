@@ -21,7 +21,7 @@ func TestPBFParser(t *testing.T) {
 	// Default params .
 	c.Provide(
 		func() string {
-			return "../../src/taiwan-latest.osm.pbf"
+			return "./src/testing.pbf"
 		},
 		dig.Name("pbfFile"),
 	)
@@ -32,8 +32,6 @@ func TestPBFParser(t *testing.T) {
 		dig.Name("pbfMasks"),
 	)
 	// Params
-	c.Provide(NewPBFIndexer, dig.Name("pbfIndexer"))
-	c.Provide(NewPBFRelationMemberIndexer, dig.Name("pbfRelationMemberIndexer"))
 	c.Provide(
 		func() string {
 			return "/tmp/osmparser"

@@ -20,28 +20,27 @@ import (
 
 // NewPBFParser .
 func NewPBFParser(
-	defaultParams DefaultPBFParserParams,
 	params PBFParserParams,
 ) PBFDataParser {
 	return &PBFParser{
-		PBFFile:                  defaultParams.PBFFile,
-		PBFMasks:                 defaultParams.PBFMasks,
-		PBFIndexer:               params.PBFIndexer,
-		LevelDBPath:              params.LevelDBPath,
-		PBFRelationMemberIndexer: params.PBFRelationMemberIndexer,
-		BatchSize:                params.BatchSize,
-		OutputElementChan:        params.OutputElementChan,
+		PBFFile:           params.PBFFile,
+		PBFMasks:          params.PBFMasks,
+		LevelDBPath:       params.LevelDBPath,
+		BatchSize:         params.BatchSize,
+		OutputElementChan: params.OutputElementChan,
 	}
 }
 
 // PBFParser .
 type PBFParser struct {
 	dig.In
-	PBFFile  string
+	// File.
+	PBFFile string
+	// BitMasks.
 	PBFMasks *bitmask.PBFMasks
 	// Indexer
-	PBFIndexer               PBFDataParser
-	PBFRelationMemberIndexer PBFDataParser
+	pbfIndexer               PBFDataParser
+	pbfRelationMemberIndexer PBFDataParser
 	// DB
 	DB          *leveldb.DB
 	LevelDBPath string
@@ -56,6 +55,56 @@ type PBFParser struct {
 // GetMap .
 func (p *PBFParser) GetMap() *bitmask.PBFMasks {
 	return p.PBFMasks
+}
+
+func (p *PBFParser) Indexing() error {
+	c := dig.New()
+	c.Provide(
+		func() string {
+			return p.PBFFile
+		},
+		dig.Name("pbfFile"),
+	)
+	c.Provide(
+		func() *bitmask.PBFMasks {
+			return bitmask.NewPBFMasks()
+		},
+		dig.Name("pbfMasks"),
+	)
+	c.Provide(NewPBFIndexer)
+	err := c.Invoke(func(parser PBFDataParser) error {
+		if err := parser.Run(); err != nil {
+			return err
+		}
+		return nil
+	})
+	return err
+}
+
+func (p *PBFParser) IndexingRelationMember() error {
+	c := dig.New()
+	c.Provide(
+		func() string {
+			return p.PBFFile
+		},
+		dig.Name("pbfFile"),
+	)
+	c.Provide(
+		func() *bitmask.PBFMasks {
+			return bitmask.NewPBFMasks()
+		},
+		dig.Name("pbfMasks"),
+	)
+	c.Provide(NewPBFRelationMemberIndexer)
+
+	err := c.Invoke(func(parser PBFDataParser) error {
+		if err := parser.Run(); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return err
 }
 
 // Run .
@@ -73,11 +122,13 @@ func (p *PBFParser) Run() error {
 	p.DB = db
 
 	// Index .
-	if err := p.PBFIndexer.Run(); err != nil {
-		return err
+	logrus.Info("Start indexing")
+	if err := p.Indexing(); err != nil {
+		return nil
 	}
-	if err := p.PBFRelationMemberIndexer.Run(); err != nil {
-		return err
+
+	if err := p.IndexingRelationMember(); err != nil {
+		return nil
 	}
 	logrus.Info("Finish index")
 

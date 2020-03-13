@@ -10,7 +10,7 @@ func TestPBFRelationMemberIndexer(t *testing.T) {
 	c := dig.New()
 	c.Provide(
 		func() string {
-			return "../../src/taiwan-latest.osm.pbf"
+			return "./src/testing.pbf"
 		},
 		dig.Name("pbfFile"),
 	)

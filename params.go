@@ -16,9 +16,9 @@ type DefaultPBFParserParams struct {
 // PBFParserParams .
 type PBFParserParams struct {
 	dig.In
-	LevelDBPath              string               `name:"levelDBPath"`
-	PBFIndexer               PBFDataParser        `name:"pbfIndexer"`
-	PBFRelationMemberIndexer PBFDataParser        `name:"pbfRelationMemberIndexer"`
-	BatchSize                int                  `name:"batchSize"`
-	OutputElementChan        chan element.Element `name:"outputElementChan"`
+	PBFFile           string               `name:"pbfFile"`
+	PBFMasks          *bitmask.PBFMasks    `name:"pbfMasks"`
+	LevelDBPath       string               `name:"levelDBPath"`
+	BatchSize         int                  `name:"batchSize"`
+	OutputElementChan chan element.Element `name:"outputElementChan"`
 }

@@ -1,7 +1,6 @@
 package osm
 
 import (
-	"github.com/groundhog-technologies/osmparser/pkg/bitmask"
 	"github.com/groundhog-technologies/osmparser/pkg/element"
 	"github.com/onrik/logrus/filename"
 	"github.com/sirupsen/logrus"
@@ -25,12 +24,6 @@ func TestPBFParser(t *testing.T) {
 		},
 		dig.Name("pbfFile"),
 	)
-	c.Provide(
-		func() *bitmask.PBFMasks {
-			return bitmask.NewPBFMasks()
-		},
-		dig.Name("pbfMasks"),
-	)
 	// Params
 	c.Provide(
 		func() string {
@@ -43,6 +36,12 @@ func TestPBFParser(t *testing.T) {
 			return 5000
 		},
 		dig.Name("batchSize"),
+	)
+	c.Provide(
+		func() bool {
+			return false
+		},
+		dig.Name("cleanLevelDB"),
 	)
 
 	c.Provide(NewPBFParser)

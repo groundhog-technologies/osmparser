@@ -5,11 +5,10 @@ go 1.12
 require (
 	github.com/benbjohnson/clock v1.0.0 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
-	github.com/onrik/logrus v0.4.1
+	github.com/jneo8/mermaid v1.1.1
+	github.com/onrik/logrus v0.5.1
 	github.com/paulmach/go.geojson v1.4.0
 	github.com/sirupsen/logrus v1.4.2
-	github.com/spf13/cobra v0.0.5
-	github.com/spf13/viper v1.5.0
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/thomersch/gosmparse v0.0.0-20190428115224-6be706b995b9
 	github.com/tmthrgd/go-popcount v0.0.0-20190904054823-afb1ace8b04f
